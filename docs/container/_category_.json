@@ -1,6 +1,6 @@
 {
-  "label": "Tutorial - Extras",
-  "position": 3,
+  "label": "IOC Container",
+  "position": 0,
   "link": {
     "type": "generated-index"
   }

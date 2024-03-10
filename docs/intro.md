@@ -2,46 +2,18 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Introduction
 
-Let's discover **Docusaurus in less than 5 minutes**.
+<p align="center">
+  <img width="25%" height="100%" src="https://i.imgur.com/Ix9w2No.png"></img>
+  <br> </br>
+  <a href="https://www.codacy.com/gh/FairyProject/fairy/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=FairyProject/fairy&amp;utm_campaign=Badge_Grade"><img src="https://app.codacy.com/project/badge/Grade/521e578f30d64d7d9e4d4eb30057c086"></img></a>
+  <a><img alt="Issues" src="https://img.shields.io/github/issues/FairyProject/fairy"></img></a>
+  <a><img alt="Forks" src="https://img.shields.io/github/forks/FairyProject/fairy"></img></a>
+  <a><img alt="Stars" src="https://img.shields.io/github/stars/FairyProject/fairy"></img></a>
+  <a><img alt="License" src="https://img.shields.io/github/license/FairyProject/fairy"></img></a>
+  <a><img alt="Authors" src="https://img.shields.io/badge/Authors-LeeGod-blue"></img></a>  
+</p>
 
-## Getting Started
+Fairy is a framework optimized for cross-platform large scale Minecraft application plugins.
 
-Get started by **creating a new site**.
-
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
-
-### What you'll need
-
-- [Node.js](https://nodejs.org/en/download/) version 18.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
-
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
-
-```bash
-npm init docusaurus@latest my-website classic
-```
-
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
-
-```bash
-cd my-website
-npm run start
-```
-
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
-
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
-
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
