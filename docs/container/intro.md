@@ -180,4 +180,4 @@ This example is very small, but as your project grows, the benefits of using fai
 Fairy solves the problem of managing the dependencies of your application, and it does so in a way that is easy to use and understand.
 If you are familiar with Spring Framework, you will feel right at home with fairy container.
 
-Look at the [next section](/docs/container/configuration) to get started with fairy container.
+Look at the [next section](/container/configuration) to get started with fairy container.

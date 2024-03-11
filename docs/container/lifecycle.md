@@ -16,8 +16,8 @@ Here is few graph about how lifecycle works in a fairy plugin.
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | Plugin.onLoad()         | The alternative of JavaPlugin.onLoad()                                                                                          |
 | Plugin.onPreEnable()    | The alternative of JavaPlugin.onEnable(), called before anything is initialized.                                                |
-| Launch Fairy Container  | Initializing the container of the main fairy package. see [Container Lifecycle](/docs/container/lifecycle#container-lifecycle). |
-| Launch Plugin Container | Initializing the container of the plugin package, see [Container Lifecycle](/docs/container/lifecycle#container-lifecycle).     |
+| Launch Fairy Container  | Initializing the container of the main fairy package. see [Container Lifecycle](/container/lifecycle#container-lifecycle). |
+| Launch Plugin Container | Initializing the container of the plugin package, see [Container Lifecycle](/container/lifecycle#container-lifecycle).     |
 | Plugin.onPostEnable()   | Called after everything is initialized.                                                                                         |
 
 ---
@@ -27,7 +27,7 @@ Here is few graph about how lifecycle works in a fairy plugin.
 | Life Cycle                           | Description                                                                                                                                                                                               |
 |--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Scan Through Packages                | Class Scanner will scan through the specified package and cache them for launching.                                                                                                                       |
-| Resolve Dependency Graph             | Resolve dependencies depends on the way they are injected, see [Dependencies](/docs/container/dependency).                                                                                                |
+| Resolve Dependency Graph             | Resolve dependencies depends on the way they are injected, see [Dependencies](/container/dependency).                                                                                                |
 | Provide Instances                    | Provide instances for every object `(injectable components)` if they are singleton. if an object was **prototype** they **won't be created by default** unless they are dependent by other **singleton**. |
 | Change Object state to **PRE_INIT**  | The pre initialize state of the container, autowired fields will be injected and life cycle callback methods are called.                                                                                  |
 | Handle Object Collector              | Object collector active, every objects will be put into collectors and adds them depends on their condition.                                                                                              |
