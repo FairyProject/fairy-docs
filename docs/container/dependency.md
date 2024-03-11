@@ -2,7 +2,7 @@
 sidebar_position: 3
 ---
 
-# Dependency Injection
+# Dependencies
 
 Dependency injection is a core concept of fairy container system. It is used to inject the dependencies of a component into the component itself.
 
@@ -136,6 +136,18 @@ public class MyDependency {
         return "something";
     }
     
+}
+```
+---
+## DependsOn Annotation
+
+The `@DependsOn` annotation is used to specify the dependencies of a component. This is useful when you want to specify the order of the initialization of the components.
+
+```java
+@InjectableComponent
+@DependsOn(MyDependency.class)
+public class MyComponent {
+    // ...
 }
 ```
 
