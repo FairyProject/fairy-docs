@@ -1,0 +1,139 @@
+---
+sidebar_position: 1
+---
+
+# Bukkit Gui
+Bukkit Gui Module is a new replacement of the old Bukkit Menu Module.
+With the power feature of pane, mapping, and more independent components, you can create a GUI with ease.
+
+---
+First Release: `0.7.1b1-SNAPSHOT`
+
+## Creating a Gui
+To create a Gui, you'll first need to inject the `GuiFactory` class into your component, and include a title in the create function.
+
+```java
+@InjectableComponent
+public class MyComponent {
+    private final GuiFactory guiFactory;
+    
+    public MyComponent(GuiFactory guiFactory) {
+        this.guiFactory = guiFactory;
+    }
+    
+    public void open(Player player) {
+        Gui gui = guiFactory.create(Component.text("My Gui"));
+        
+        // configure
+        
+        gui.open(player);
+    }
+}
+```
+
+Done! you created a Gui with a title of `My Gui`, easy right? but what if you want to add a pane to the Gui?
+
+---
+## Pane System
+Here it comes, the main difference between the old Menu Module and the new Gui Module, the Pane System.
+
+A Pane is a container that holds gui items, and it can be added to the Gui to display the components.
+A Gui can hold multiple panes, and each pane will have their specific position and region.
+
+### Creating a Pane
+Creating a pane is simple, you can use the `Pane` class to create a new pane, and add it to the Gui. Let's start with a normal pane.
+
+```java
+NormalPane pane = Pane.normal(9, 3); // 9 slots, 3 rows
+
+gui.addPane(pane);
+```
+
+A normal pane is a pane that holds a fixed amount of slots, there is also other types of panes such as PaginatedPane for paginated slots.
+
+### Adding Slots
+To add slots to the pane, you can use the `setSlot` method to add an item to the pane.
+
+```java
+pane.setSlot(0, GuiSlot.of(XMaterial.APPLE));
+
+pane.fillEmptySlots(GuiSlot.of(XMaterial.GRAY_STAINED_GLASS_PANE)); // fill empty slots with a specific gui slot
+```
+
+You have a Gui with an apple in the first slot, and the rest of the slots are filled with gray stained-glass pane! Easy so far?
+
+---
+## Gui Slot
+With the previous example, you know how to create a GuiSlot with plain material. But actually, you can do more with GuiSlot.
+Not only accepting XMaterial, but also ItemStack, ItemBuilder, and regular Bukkit Material etc.
+
+```java
+GuiSlot withItemBuilder = GuiSlot.of(ItemBuilder
+        .of(XMaterial.APPLE)
+        .name("&bApple")
+        .build());
+GuiSlot withItemStack = GuiSlot.of(new ItemStack(Material.APPLE));
+GuiSlot withMaterial = GuiSlot.of(Material.APPLE);
+```
+
+### Behavior
+GuiSlot also supports behavior, you can add a click event to the slot, and it will be triggered when the player clicks on the slot.
+
+```java
+GuiSlot onClick = GuiSlot.of(XMaterial.APPLE, clickedPlayer -> {
+    clickedPlayer.sendMessage("You clicked the apple!");
+});
+
+GuiSlot onRightClick = GuiSlot.of(XMaterial.APPLE, (clickedPlayer, clickType) -> {
+    if (clickType != ClickType.RIGHT)
+        return;
+    clickedPlayer.sendMessage("You right-clicked the apple!");
+});
+```
+
+### Item Selector
+Item Selector is a special type of GuiSlot that allows the player to select an item from their inventory.
+
+```java
+import java.util.concurrent.atomic.AtomicReference;
+
+AtomicReference<ItemStack> item = new AtomicReference<>(new ItemStack(Material.APPLE));
+
+// Create an item selector in the first slot of the pane.
+// Make sure when you setSlot to the pane, you set the slot to 0 too.
+GuiSlot itemSelectorSlot = GuiSlot.itemSelector(pane, 0)
+    .emptyItem(new ItemStack(Material.BARRIER)) // The item to display when there is no item in the item selector.
+    .currentItem(new ItemStack(Material.APPLE)) // The default item available in the item selector.
+    .canPlacePredicate(itemStack ->itemStack.getType() == Material.APPLE) // The predicate to check if the player can place the item.
+    .updateCallback(itemStack -> {
+        // The callback to update the item in the item selector.
+        // This will be called when the player places an item in the item selector.
+        item.set(itemStack);
+    })
+    .build();
+
+pane.setSlot(0, itemSelectorSlot);
+```
+
+---
+## Paginated
+PaginatedPane is a special type of pane that holds a paginated list of slots, and it allows the player to navigate through the pages.
+
+```java
+PaginatedPane paginatedPane = Pane.paginated(9, 3); // 9 slots, 3 rows
+
+// Add slots to the paginated pane
+for (int i = 0; i < 100; i++) {
+    int index = i;
+    paginatedPane.addSlot(GuiSlot.of(XMaterial.APPLE, clickedPlayer -> {
+        clickedPlayer.sendMessage("You clicked the apple number " + index);
+    });
+}
+
+NormalPane navigationPane = Pane.normal(0, 4, 9, 1); // 9 slots, 1 row, starting from the 4th row
+navigationPane.setSlot(0, GuiSlot.previousPage(paginatedPane)); // The previous page button
+navigationPane.setSlot(8, GuiSlot.nextPage(paginatedPane)); // The next page button
+
+gui.addPane(paginatedPane);
+gui.addPane(navigationPane);
+```
