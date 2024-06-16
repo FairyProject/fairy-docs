@@ -74,7 +74,7 @@ const config = {
             label: 'Docs',
           },
           {
-            href: 'https://github.com/facebook/docusaurus',
+            href: 'https://github.com/FairyProject/fairy',
             label: 'GitHub',
             position: 'right',
           },
