@@ -1,0 +1,128 @@
+---
+sidebar_position: 2
+---
+
+# Sub Commands
+
+If you're doing a command, you'll most likely be in need of creating sub-commands. There are many reasons, albeit most are organizational. To create subcommands, you have two choices:
+- You may create a sub command in the same class
+- You may create a sub command in a separate class
+
+## Same class sub-commands
+
+For smaller sub-commands which don't require complicated behaviours, we heavily recommend to keep them in the same class. An example would be:
+
+Lets say we have the "fairy" command, we wish the following sub-commands:
+- `fairy hello`: Says hello to user
+- `fairy bye`: Says goodbye to the user
+
+We would have to create the following class:
+```java
+@InjectableComponent
+@Command(value = "fairy", permissionNode = "fairy.test")
+@CommandPresence(DefaultPresenceProvider.class)
+public class TestCommand extends BaseCommand {
+
+    /**
+     * Creates a command which matches the command
+     * -> /fairy hello
+     */
+    @Command(value = "hello", permissionNode = "fairy.test.hello")
+    public void create(CommandContext context) {
+        context.sendMessage(MessageType.INFO, "Hello user!");
+    }
+
+   /**
+     * Creates a command which matches the command
+     * -> /fairy bye
+     */
+    @Command(value = "bye", permissionNode = "fairy.test.bye")
+    public void create(CommandContext context) {
+        context.sendMessage(MessageType.INFO, "Goodbye user!");
+    }
+}
+```
+
+## Subclass sub-commands
+
+For moderate and more complex sub-commands, or sub-commands requiring sub-commands of their own, you may use the following syntax:
+
+```java
+@InjectableComponent
+@Command(value = "fairy", permissionNode = "fairy.test")
+@CommandPresence(DefaultPresenceProvider.class)
+public class TestCommand extends BaseCommand {
+
+    @Command(value = "hello", permissionNode = "fairy.test.hello")
+    class Hello extends BaseCommand {
+        /**
+         * Creates a command which matches the command
+         * -> /fairy hello
+         */
+        @Override
+        public void onHelp(CommandContext sctx) {
+            sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", name));
+        }
+    }
+
+    @Command(value = "bye", permissionNode = "fairy.test.bye")
+    class Bye extends BaseCommand {
+        /**
+         * Creates a command which matches the command
+         * -> /fairy hello
+         */
+        @Override
+        public void onHelp(CommandContext sctx) {
+            sctx.sendMessage(MessageType.INFO, String.format("Bye %s!", name));
+        }
+    }
+}
+```
+
+## Seperate class sub-commands
+
+For bigger and more complex sub-commands, or sub-commands requiring sub-commands of their own, you may use the following syntax:
+```java
+@InjectableComponent
+@Command(value = "fairy", permissionNode = "fairy.test")
+@CommandPresence(DefaultPresenceProvider.class)
+public class TestCommand extends BaseCommand {
+
+    @Arg("hello")
+    private TestSubCommandHello hello;
+
+    @Arg("bye")
+    private TestSubCommandBye bye;
+}
+```
+```java
+@Command(value = "hello", permissionNode = "fairy.hello")
+@CommandPresence(DefaultPresenceProvider.class)
+public class TestSubCommandHello extends BaseCommand {
+
+    /**
+     * Creates a command which matches the command
+     * -> /fairy hello
+     */
+    @Override
+    public void onHelp(CommandContext sctx) {
+        sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", name));
+    }
+}
+```
+```java
+@Command(value = "bye", permissionNode = "fairy.bye")
+@CommandPresence(DefaultPresenceProvider.class)
+public class TestSubCommandBye extends BaseCommand {
+
+    /**
+     * Creates a command which matches the command
+     * -> /fairy hello
+     */
+    @Override
+    public void onHelp(CommandContext sctx) {
+        sctx.sendMessage(MessageType.INFO, String.format("Goodbye %s!", name));
+    }
+}
+```
+

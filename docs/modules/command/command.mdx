@@ -1,0 +1,141 @@
+---
+sidebar_position: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Commands
+
+The command module represents the Fairy module allowing users to interact directly with services, repositories and any sort of handler via the logistic of commands. This feature is predominantly used in bots (Discord, Slack, Telegram, etc...), in shell applications (trading automations etc...) and in Game servers (Minecraft, Rust, etc..).
+
+## Adding the command module
+
+In your module build.gradle, please add the following dependency:
+
+<Tabs>
+    <TabItem value="groovy" label="Groovy">
+
+        ```groovy
+        dependencies {
+            api 'io.fairyproject:core-command'
+
+            // Other dependencies
+        }
+        ```
+
+    </TabItem>
+    <TabItem value="kotlin-dsl" label="Kotlin DSL">
+
+        ```kotlin
+        dependencies {
+            api("io.fairyproject:core-command")
+
+            // Other dependencies
+        }
+        ```
+
+
+    </TabItem>
+</Tabs>
+
+If you are using **Bukkit**, you may add instead:
+
+<Tabs>
+    <TabItem value="groovy" label="Groovy">
+
+        ```groovy
+        dependencies {
+        api 'io.fairyproject:bukkit-command'
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+    <TabItem value="kotlin-dsl" label="Kotlin DSL">
+
+        ```kotlin
+        dependencies {
+        api("io.fairyproject:bukkit-command")
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+</Tabs>
+
+
+Tada! You're all set. Lets create your first command 👍
+
+
+## Creating your first command
+
+By default, you must extend the `BaseCommand`, as seen below
+
+```java
+@InjectableComponent
+@Command(value = "testfairy", permissionNode = "fairy.test")
+public class TestCommand extends BaseCommand {
+
+    @Override
+    public void onHelp(CommandContext sctx) {
+        sctx.sendMessage(MessageType.INFO, "Halo!");
+    }
+
+}
+```
+
+First, lets deconstruct our annotations:
+- `@InjectableComponent`: Typical annotation which will you find pretty much everywhere. This allows for the
+  Fairy framework to inject your command
+- `@Command`: This is what determines the typical info about your command, such as the name etc...
+- `@CommandPresence`: Completely optional if you're going to make use of the CommandContext message
+  feature. This provides an interface which will link Fairy to whichever platform you're using.
+
+## Adding a parameter to your command
+
+Alright, now that you've written your first command, you may want to add a paramter to it. Perhaps lets say you wish to say hello to someone in particular!
+
+Now, we would want our command to look like this:
+```s
+/testfairy <username>
+```
+
+And we would want the output to be:
+```
+[Fairy] Halo <username>!
+```
+
+In the fairy framework, this is *super* easy to add.
+
+```java
+@InjectableComponent
+@Command(value = "testfairy", permissionNode = "fairy.test")
+public class TestCommand extends BaseCommand {
+
+    @Arg("name") 
+    private String name;
+
+    @Override
+    public void onHelp(CommandContext sctx) {
+        sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", name));
+    }
+
+}
+```
+
+As you can see, at the click of an annotation, you are capable of adding arguments, whether it be any of the following types:
+- `Boolean`: Values accepted: "true", "on", "yes", "false", "off", "no"
+- `Double`: Values accepted: Any double formatted "0.001" etc. NaN, Infinity and "E" values are rejected.
+- `Float`: Values accepted: Any float formatted "0.001" etc. NaN, Infinity and "E" values are rejected.
+- `Integer`: Values accepted: Any integer from `-2147483648` to `2147483647`
+- `Long`: Values accepted: Any long formatted "10000000" from `-9223372036854775808` to `9223372036854775807`. NaN, Infinity and "E" values are rejected.
+- `UUID`: Values accepted: Any valid UUID following the UUIDv4 format (8-4-4-4-12 for a total of 36 characters (32 hexadecimal characters and 4 hyphens). For example: `123e4567-e89b-12d3-a456-426614174000`.)
+
+You may also create your own ArgTransformer. [View here](https://github.com/FairyProject/fairy/wiki/Command-Arg-Transformer)
+
+## Sub-commands
+
+To create sub-commands, you may view the documentation available [here](https://github.com/FairyProject/fairy/wiki/Command-Sub-Command). Additionally, you may snoop around the [BaseCommand](https://github.com/FairyProject/fairy/blob/v6/io.fairyproject.modules/module.command/core-command/src/main/java/io/fairyproject/command/BaseCommand.java) class.

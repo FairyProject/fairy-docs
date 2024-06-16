@@ -2,6 +2,9 @@
 sidebar_position: 1
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Bukkit Gui
 Bukkit Gui Module is a new replacement of the old Bukkit Menu Module.
 With the power feature of pane, mapping, and more independent components, you can create a GUI with ease.
@@ -9,6 +12,36 @@ With the power feature of pane, mapping, and more independent components, you ca
 ---
 First Release: `0.7.1b1-SNAPSHOT`
 
+## Adding the gui module
+
+In your module build.gradle, please add the following dependency:
+
+<Tabs>
+    <TabItem value="groovy" label="Groovy">
+
+        ```groovy
+        dependencies {
+        api 'io.fairyproject:bukkit-gui'
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+    <TabItem value="kotlin-dsl" label="Kotlin DSL">
+
+        ```kotlin
+        dependencies {
+        api("io.fairyproject:bukkit-gui")
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+</Tabs>
+
+---
 ## Creating a Gui
 To create a Gui, you'll first need to inject the `GuiFactory` class into your component, and include a title in the create function.
 
