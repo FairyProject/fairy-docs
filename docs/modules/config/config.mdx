@@ -1,0 +1,240 @@
+---
+sidebar_position: 1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Config
+
+The Config module is a module that allows you to create and manage [YAML](https://yaml.org/) configurations for your plugin.
+
+Full credit to [configlib](https://github.com/Exlll/ConfigLib). This is fairy's port of the library.
+
+:::warning
+
+I'm considering to rework the module, either update to latest configlib or build a new one from scratch. So use it at your own risk.
+
+:::
+
+## Adding the config module
+
+In your module build.gradle, please add the following dependency:
+
+<Tabs>
+    <TabItem value="groovy" label="Groovy">
+
+        ```groovy
+        dependencies {
+        api 'io.fairyproject:core-config'
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+    <TabItem value="kotlin-dsl" label="Kotlin DSL">
+
+        ```kotlin
+        dependencies {
+        api("io.fairyproject:core-config")
+
+        // Other dependencies
+    }
+        ```
+
+    </TabItem>
+</Tabs>
+
+---
+## Creating a Config
+
+To create a YAML config, simply create a class that's extending YamlConfiguration.
+
+### Config Class
+```java
+import io.fairyproject.config.YamlConfiguration;
+
+public class MyConfig extends YamlConfiguration {
+    /**
+    * Here you'll be asked for a path to the config file.
+    * So we pass your plugin instance into here and get it data folder, to find the correct path for the config file.
+    */
+    public MyConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("config.yml"));
+    }
+}
+```
+
+And then we can start throwing some values into the config.
+
+### Config Values
+```java
+// I'm a lombok fan, don't judge me!
+@Getter
+public class MyConfig extends YamlConfiguration {
+    private String string = "hello world";
+    private int number = 42;
+    private boolean aBoolean = true;
+    private List<String> list = Arrays.asList("a", "b", "c");
+
+//...
+```
+
+:::warning
+
+Value field must **NOT** be final. It will cause an error.
+
+:::
+
+:::warning
+
+Every value need to be defined with a default value, otherwise it will throw an error.
+
+:::
+
+Final let's load and save the config by using the loadAndSave method.
+
+### Load and Save
+```java
+@Getter
+public class MyConfig extends YamlConfiguration {
+    private String string = "hello world";
+    private int number = 42;
+    private boolean aBoolean = true;
+    private List<String> list = Arrays.asList("a", "b", "c");
+
+    public MyConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("config.yml"));
+
+        // highlight-next-line
+        this.loadAndSave();
+    }
+}
+```
+
+:::tip
+
+the loadAndSave method can be called anywhere any time, it will load the config if it exists, and create a new one if it doesn't. Also save the config if it's modified.
+For example, you added a new value to the config, the config will be modified automatically.
+
+Example:
+```java
+MyConfig myConfig = new MyConfig(plugin);
+myConfig.loadAndSave();
+```
+
+:::
+
+Tada! You're all set. 👍 After constructing the config, you will see the config file in your plugin's data folder which contains the following:
+
+```yaml
+string: hello world
+number: 42
+aBoolean: true
+list:
+  - a
+  - b
+  - c
+```
+
+And you can access the values by calling the getter methods.
+
+```java
+MyConfig myConfig = new MyConfig(plugin);
+String string = myConfig.getString();
+
+System.out.println(string); // hello world
+```
+
+---
+## Post-Processing
+
+You can also add a post-processing method to your config class, which will be called after the config is loaded and you can do some additional processing.
+
+```java
+@Getter
+public class MyConfig extends YamlConfiguration {
+    private String string = "hello world";
+
+    public MyConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("config.yml"));
+
+        this.loadAndSave();
+    }
+
+    // highlight-start
+    @Override
+    public void postLoad() {
+        System.out.println("Config loaded! String value: " + string);
+    }
+    // highlight-end
+
+    // highlight-start
+    @Override
+    public void postSave() {
+        System.out.println("Config saved! String value: " + string);
+    }
+    // highlight-end
+}
+```
+
+---
+## Transient Fields
+
+You can also add transient fields to your config class, which will not be saved to the config file.
+
+```java
+@Getter
+public class MyConfig extends YamlConfiguration {
+    private String input = "hello world";
+    // highlight-next-line
+    private transient String string;
+
+    public MyConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("config.yml"));
+
+        this.loadAndSave();
+    }
+
+    @Override
+    public void postLoad() {
+        string = input + "!"; // hello world!
+    }
+}
+```
+
+Which will look like this in the config file:
+
+```yaml
+input: hello world
+```
+
+---
+## Comments
+
+You can also add comments to your config file by using the `@Comment` annotation.
+
+```java
+@Getter
+public class MyConfig extends YamlConfiguration {
+    @Comment("This is a string value")
+    private String string = "hello world";
+
+    public MyConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("config.yml"));
+
+        this.loadAndSave();
+    }
+}
+```
+
+Which will look like this in the config file:
+
+```yaml
+# This is a string value
+string: hello world
+```
+
+---
+Easy right? 😄

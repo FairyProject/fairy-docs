@@ -1,0 +1,121 @@
+---
+sidebar_position: 2
+---
+
+# ConfigurationElement
+
+The [`ConfigurationElement`](https://github.com/FairyProject/fairy/blob/v0.7/framework/modules/core/core-config/src/main/java/io/fairyproject/config/annotation/ConfigurationElement.java) class is a class that represents a custom element in the configuration file using a Java Class.
+Similar to [`YamlConfiguration`](https://github.com/FairyProject/fairy/blob/v0.7/framework/modules/core/core-config/src/main/java/io/fairyproject/config/yaml/YamlConfiguration.java) itself, `ConfigurationElement` allows you to add custom values to the configuration file.
+
+## Creating a ConfigurationElement
+
+### Creating a Class
+To create a `ConfigurationElement`, you'll first need to create a class that annotated with `@ConfigurationElement`.
+
+```java
+import io.fairyproject.config.annotation.ConfigurationElement;
+
+@ConfigurationElement
+public class MyElement {
+    private String name = "Fairy";
+    private int age = 1;
+
+    public MyElement() {
+    }
+
+    public MyElement(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+}
+```
+
+:::warning
+
+The class must contains at least a default constructor that is empty.
+
+:::
+
+:::warning
+
+Value field must **NOT** be final and with a default value. It will cause an error.
+
+:::
+
+### Adding the Element to the Config
+And then we can start throwing the element into the config.
+
+```java
+public class MyConfig extends YamlConfiguration {
+    private MyElement element = new MyElement("Fairy", 1);
+    private MyElement element2 = new MyElement("Bar", 2);
+}
+```
+
+And then done! Let's see how it looks like in the configuration file.
+
+```yaml
+element:
+  name: Fairy
+  age: 1
+element2:
+  name: Bar
+  age: 2
+```
+
+### Nested Element
+And of course, you can define multiple nested elements.
+
+```java
+@ConfigurationElement
+public class MyElement {
+    private String name = "Fairy";
+    private int age = 1;
+    private MyNestedElement child = new MyNestedElement("Test");
+
+    public MyElement() {
+    }
+}
+
+@ConfigurationElement
+public class MyNestedElement {
+    private String name = "Test";
+
+    public MyNestedElement() {
+    }
+
+    public MyNestedElement(String name) {
+        this.name = name;
+    }
+}
+```
+
+```yaml
+element:
+  name: Fairy
+  age: 1
+  child:
+    name: Test
+```
+
+---
+## Element Collection (List, Set, Map)
+
+Special items in a collection requires an annotation to specify the type of the collection. [ElementType](https://github.com/FairyProject/fairy/blob/v0.7/framework/modules/core/core-config/src/main/java/io/fairyproject/config/annotation/ElementType.java)
+
+```java
+@ConfigurationElement
+class MyCustomClass {/* fields etc.*/}
+
+class MyConfiguration extends YamlConfiguration {
+    @ElementType(Material.class)
+    private List<Material> materials = new ArrayList<>();
+
+    @ElementType(MyCustomClass.class)
+    private Set<MyCustomClass> customClasses = new HashSet<>();
+
+    @ElementType(MyCustomClass.class)
+    private Map<String, MyCustomClass> customClassesMap = new HashMap<>();
+    // ...
+}
+```
