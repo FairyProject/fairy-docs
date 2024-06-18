@@ -1,0 +1,214 @@
+---
+sidebar_position: 1
+description: Wanna schedule tasks in Minecraft? Here is the solution!
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# MCScheduler
+
+The scheduler module represents the Fairy module allowing users to schedule tasks in Minecraft. This feature is predominantly used in Minecraft plugins to schedule tasks to run at a specific time or to run tasks repeatedly.
+
+To schedule a task in the next tick of main thread:
+```java
+import io.fairyproject.mc.scheduler.MCSchedulers;
+
+public class Test {
+    public void test() {
+        MCSchedulers.getGlobalScheduler().schedule(() -> Log.info("I'm delayed by 1 tick!"), 1L);
+    }
+}
+```
+
+And yep! it's that simple, no more Java Plugins blah blah blah! 😂
+
+---
+## Scheduler Variants
+
+So far MCSchedulers contains 4 variants of scheduler:
+<Tabs>
+    <TabItem value="global" label="Global" default>
+        ```java
+        MCSchedulers.getGlobalScheduler()
+        ```
+
+        - **Bukkit**: The global scheduler is the main scheduler of the server, it schedules tasks to run in the main thread.
+        - **Folia**: The global scheduler of folia server, it's not any region specific. mostly used for global things such as day-night cycle.
+    </TabItem>
+    <TabItem value="async" label="Async">
+        ```java
+        MCSchedulers.getAsyncScheduler()
+        ```
+
+        - **Bukkit**: The async scheduler is used to schedule tasks to run in a separate thread.
+        - **Folia**: The async scheduler is used to schedule tasks to run in a separate thread.
+    </TabItem>
+    <TabItem value="entity" label="Entity">
+        ```java
+        MCSchedulers.getEntityScheduler(Object entity)
+        ```
+
+        - **Bukkit**: Automatically forward to main thread scheduler.
+        - **Folia**: The entity scheduler is used to schedule tasks to run in the region of the entity.
+    </TabItem>
+    <TabItem value="location" label="Location">
+        ```java
+        MCSchedulers.getLocationScheduler(Location location)
+        MCSchedulers.getLocationScheduler(MCWorld world, int chunkX, int chunkZ)
+        ```
+
+        - **Bukkit**: Automatically forward to main thread scheduler.
+        - **Folia**: The location scheduler is used to schedule tasks to run in the region of the location.
+    </TabItem>
+</Tabs>
+
+---
+## Scheduling Tasks
+
+Everything returned in MCSchedulers is a MCScheduler, which is built on top of the Scheduler interface, it has the following methods:
+- `ScheduledTask<?> schedule(Runnable task, long delay)`
+    - Schedules a task to run after a delay, by ticks.
+- `ScheduledTask<?> scheduleAtFixedRate(Runnable task, long delay, long period)`
+    - Schedules a task to run after a delay, and then repeatedly after a period, by ticks.
+    - **The CompletableFuture of this will never end unless you manually cancelled it.**
+- `<R> ScheduledTask<R> schedule(Callback<R> task, long delay)`
+    - Schedules a task to run after a delay which potentially returns a value, by ticks.
+- `<R> ScheduledTask<R> scheduleAtFixedRate(Callback<TaskResponse<R>> task, long delay, long period)`
+    - Schedules a task to run after a delay, and then repeatedly after a period which potentially returns a value, by ticks.
+
+Every task scheduled will return a ScheduledTask, which can be used to cancel the task or get the task's status by using [CompletableFuture](https://docs.oracle.com/javase%2F8%2Fdocs%2Fapi%2F%2F/java/util/concurrent/CompletableFuture.html).
+For example:
+```java
+import io.fairyproject.mc.scheduler.MCSchedulers;
+
+public class Test {
+    public void test() {
+        ScheduledTask<?> scheduledTask = MCSchedulers.getGlobalScheduler().schedule(() -> Log.info("I'm delayed by 20 ticks!"), 20L);
+        scheduledTask.getFuture().thenAccept((v) -> Log.info("Task is done!"));
+    }
+}
+```
+
+The output will be:
+```
+I'm delayed by 20 ticks!
+Task is done!
+```
+
+:::warning
+
+If the task is cancelled then the Future will fail with a CancellationException.
+If you want to handle the cancellation, you can use the whenComplete method of CompletableFuture.
+
+:::
+
+### Task with a return value
+You can also use the scheduler to expect a return value from the task:
+```java
+import io.fairyproject.mc.scheduler.MCSchedulers;
+
+public class Test {
+    public void test() {
+        ScheduledTask<Integer> scheduledTask = MCSchedulers.getGlobalScheduler().schedule(() -> {
+            Log.info("I'm delayed by 20 ticks!");
+            return 10;
+        }, 20L);
+        scheduledTask.getFuture().thenAccept((v) -> Log.info("Task is done! Result: " + v));
+    }
+}
+```
+
+The output will be:
+```
+I'm delayed by 20 ticks!
+Task is done! Result: 10
+```
+
+### Repeated Task with a return value
+And also, you can use the scheduler to run a task repeatedly that expects a return value:
+```java
+public class Test {
+    public void test() {
+        ScheduledTask<Player> scheduledTask = MCSchedulers.getGlobalScheduler().scheduleAtFixedRate(() -> {
+            int size = Bukkit.getOnlinePlayers().size();
+            Log.info("There are " + size + " players online!");
+
+            if (size >= 10) {
+                /**
+                * If there are more than 10 players online, return the first player and the task will be stopped.
+                */
+                return TaskResponse.success(Bukkit.getOnlinePlayers().iterator().next());
+            } else if (size == 0) {
+                /**
+                * If there are no players online, return a failure and the task will be stopped.
+                */
+                return TaskResponse.failure("No players online!");
+            }
+
+            /**
+            * If there are less than 10 players online, continue the task.
+            */
+            return TaskResponse.continueTask();
+        }, 20L, 10L);
+
+        scheduledTask.getFuture().whenComplete((v, e) -> {
+            if (e != null) {
+                Log.error("Task failed!", e);
+            } else {
+                Log.info("Task is done! Result: " + v);
+            }
+        });
+    }
+}
+```
+
+This logic is a bit more complex! let's break it down:
+- The task will run every 10 ticks.
+- It will check the number of online players.
+- If there are more than 10 players online, it will return the first player and the task will be stopped.
+- If there are no players online, it will return a failure and the task will be stopped.
+- If there are less than 10 players online, it will continue the task.
+
+So this will act like a monitor that checks online players, it will cycle forever unless there is no player online or there are more than 10 players online.
+
+When no player:
+```
+There are 0 players online!
+Task failed! java.lang.IllegalStateException: No players online!
+```
+
+When more than 10 players:
+```
+There are 11 players online!
+Task is done! Result: Player{name='Player1'}
+```
+
+When less than 10 players:
+```
+There are 9 players online!
+There are 8 players online!
+There are 7 players online!
+...
+```
+
+---
+## Cancelling a task
+
+You can cancel a task by using the `cancel` method of the ScheduledTask:
+```java
+import io.fairyproject.mc.scheduler.MCSchedulers;
+
+public class Test {
+    public void test() {
+        ScheduledTask<?> scheduledTask = MCSchedulers.getGlobalScheduler().schedule(() -> Log.info("I'm delayed by 20 ticks!"), 20L);
+        scheduledTask.cancel();
+    }
+}
+```
+
+And the task will be cancelled before it runs!
+
+---
+
+Easy and useful, right? 😄
