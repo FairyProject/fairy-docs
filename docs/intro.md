@@ -18,3 +18,4 @@ sidebar_position: 1
 
 Fairy is a framework optimized for cross-platform large scale Minecraft application plugins.
 
+Start with our [Getting Started](getting-started/preparing-env) guide to learn how to use Fairy in your project!

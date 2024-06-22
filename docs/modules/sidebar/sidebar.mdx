@@ -103,3 +103,44 @@ public @Nullable List<SidebarLine> getLines(@NotNull MCPlayer mcPlayer) {
 ```
 
 ![Sidebar](img/coord-sidebar.gif)
+
+---
+## Score Format
+
+As of 1.20.3, you are now able to set the score format of the sidebar. And yes, we provide the functionality to set the score format!
+
+```java
+    @Override
+    public @Nullable List<SidebarLine> getLines(@NotNull MCPlayer mcPlayer) {
+        return Arrays.asList(
+                SidebarLine.of(Component.text("Blank Score"), ScoreFormat.blankScore()),
+                SidebarLine.of(Component.text("Styled Score"), ScoreFormat.styledScore(Style.style()
+                                .color(NamedTextColor.AQUA)
+                        .build())),
+                SidebarLine.of(Component.text("Custom Score"), ScoreFormat.fixedScore(Component.text("I'm Score")))
+        );
+    }
+```
+
+:::warning
+
+It will not be displayed for clients or servers under 1.20.3.
+
+:::
+
+---
+## Hide the Sidebar
+
+Sometimes you may want to hide the sidebar, and there is several ways to do it.
+1. Return null in the getTitle or getLines function.
+2. Return an empty list in the getLines function.
+3. Implement the `shouldDisplay(MCPlayer)` function and return false.
+
+```java
+@Override
+public boolean shouldDisplay(@NotNull MCPlayer mcPlayer) {
+    return mcPlayer.getGameMode() == GameMode.CREATIVE;
+}
+```
+
+And the sidebar will be hidden when the player is in creative mode!
