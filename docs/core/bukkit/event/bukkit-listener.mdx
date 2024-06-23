@@ -1,0 +1,26 @@
+---
+sidebar_position: 3
+description: Listener registration
+---
+
+# Register a Listener
+
+Registering listeners is the basic functionality of a plugin. How can you register a listener in Fairy?
+We provide an annotation alongside with the `@InjectableComponent` annotation, which is the `@RegisterAsListener` annotation.
+This annotation basically registers the class as a listener whenever it's injected as a component.
+
+Here's an example:
+
+```java
+import io.fairyproject.bukkit.listener.RegisterAsListener;
+import io.fairyproject.container.InjectableComponent;
+
+@InjectableComponent
+@RegisterAsListener
+public class MyListener implements Listener {
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        event.getPlayer().sendMessage("Hello, " + event.getPlayer().getName());
+    }
+}
+```
