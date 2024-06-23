@@ -70,7 +70,7 @@ If you are using **Bukkit**, you may add instead:
 
 Tada! You're all set. Lets create your first command 👍
 
-
+---
 ## Creating your first command
 
 By default, you must extend the `BaseCommand`, as seen below
@@ -95,6 +95,7 @@ First, lets deconstruct our annotations:
 - `@CommandPresence`: Completely optional if you're going to make use of the CommandContext message
   feature. This provides an interface which will link Fairy to whichever platform you're using.
 
+---
 ## Adding a parameter to your command
 
 Alright, now that you've written your first command, you may want to add a paramter to it. Perhaps lets say you wish to say hello to someone in particular!
@@ -137,6 +138,7 @@ As you can see, at the click of an annotation, you are capable of adding argumen
 
 You may also create your own ArgTransformer. [View here](https://github.com/FairyProject/fairy/wiki/Command-Arg-Transformer)
 
+---
 ## Sub-commands
 
 To create sub-commands, you may view the documentation available [here](https://github.com/FairyProject/fairy/wiki/Command-Sub-Command). Additionally, you may snoop around the [BaseCommand](https://github.com/FairyProject/fairy/blob/v6/io.fairyproject.modules/module.command/core-command/src/main/java/io/fairyproject/command/BaseCommand.java) class.

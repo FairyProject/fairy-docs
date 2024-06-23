@@ -1,0 +1,243 @@
+---
+sidebar_position: 4
+description: Bukkit item module with utilities for behaviours and interactions with items.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Bukkit Item
+Wanted to make items with custom behaviours? This module is for you!
+
+## Adding the Bukkit Item module
+
+In your module build.gradle, please add the following dependency:
+
+<Tabs>
+    <TabItem value="groovy" label="Groovy">
+
+        ```groovy
+        dependencies {
+            api 'io.fairyproject:bukkit-items'
+
+            // Other dependencies
+        }
+        ```
+
+    </TabItem>
+    <TabItem value="kotlin-dsl" label="Kotlin DSL">
+
+        ```kotlin
+        dependencies {
+            api("io.fairyproject:bukkit-items")
+
+            // Other dependencies
+        }
+        ```
+
+
+    </TabItem>
+</Tabs>
+
+---
+## FairyItem
+
+`FairyItem` is a class that represents an item in the game, creating a FairyItem is like registering a custom item into registry.
+Whenever you want it in ItemStack form, it has the functionality to convert it into an ItemStack.
+
+:::info
+
+The item that's provided by the `FairyItem` will be marked as a custom item using **NBT tags**.
+So as long as the FairyItem ID is the same and properly registered, the item will keep its function even after the server restarts.
+
+:::
+
+### Creating a FairyItem
+
+```java
+import io.fairyproject.bukkit.item.FairyItem;
+
+@InjectableComponent
+public class MyComponent {
+    private final FairyItemRegistry fairyItemRegistry;
+    private FairyItem customItem;
+
+    public void createItem() {
+        this.customItem = FairyItem.builder("my_custom_item")
+            .item(new ItemStack(Material.DIAMOND_SWORD))
+            .create(fairyItemRegistry);
+    }
+
+    public void useItem(Player player) {
+        ItemStack itemStack = customItem.provide(player);
+
+        player.getInventory().addItem(itemStack);
+    }
+}
+```
+
+:::warning
+
+Do NOT create an instance of `FairyItem` everytime you want to use it, instead create a static instance of it and use it.
+Or you can use the `FairyItemRegistry` to get the instance of the item.
+
+```java
+    public void useItem(Player player) {
+        //highlight-next-line
+        ItemStack itemStack = fairyItemRegistry.get("my_custom_item").provideItemStack(player);
+
+        player.getInventory().addItem(itemStack);
+    }
+```
+
+:::
+
+And tada! You have created a custom item in the game. But wait... how is it different from a normal ItemStack?
+
+Well, the `FairyItem` has a lot of functionalities that you can use to interact with the item!
+
+---
+## Behaviours
+
+Behaviours are the functionalities that you can add to the item, such as right-clicking, left-clicking, blo, or just register your own custom behaviour to the item!
+
+### Right Click
+Let's start with a simple right-click behaviour!
+
+```java
+@InjectableComponent
+public class MyComponent {
+    private final FairyItemRegistry fairyItemRegistry;
+    // New dependency for the interaction behaviour!
+    private final ListenerRegistry listenerRegistry;
+    private FairyItem customItem;
+
+    public void createItem() {
+        this.customItem = FairyItem.builder("my_custom_item")
+            .item(new ItemStack(Material.DIAMOND_SWORD))
+
+            //highlight-start
+            .behaviour(ItemBehaviour.interact(listenerRegistry, (player, itemStack, action, event) -> {
+                player.sendMessage("You right-clicked the item!");
+            }, Action.RIGHT_CLICK_AIR, Action.RIGHT_CLICK_BLOCK))
+            //highlight-end
+
+            .create(fairyItemRegistry);
+    }
+}
+```
+
+![Right-click](img/right-click.gif)
+
+Easy and simple right? You can also add more behaviours to the item, such as left-click, block-place, or even custom behaviours!
+
+Let's see more examples of behaviours!
+
+### Block Place
+
+```java
+    @PostInitialize
+    public void createItem() {
+        this.customItem = FairyItem.builder("my_custom_item")
+                // You can also slap in item builder here!
+                .item(ItemBuilder.of(Material.DIAMOND_BLOCK)
+                        .name("&6&lBIG DIAMOND BLOCK")
+                        .lore("&7This is a big diamond block!", "&7Right click to place a 3x3 diamond block")
+                )
+
+                //highlight-start
+                /**
+                 * Place a 3x3 diamond block when block placed
+                 */
+                .behaviour(ItemBehaviour.blockPlace(listenerRegistry, (player, itemStack, block, event) -> {
+                    for (int x = -1; x <= 1; x++) {
+                        for (int y = -1; y <= 1; y++) {
+                            for (int z = -1; z <= 1; z++) {
+                                Block around = block.getWorld().getBlockAt(block.getX() + x, block.getY() + y, block.getZ() + z);
+                                around.setType(Material.DIAMOND_BLOCK);
+                            }
+                        }
+                    }
+                }))
+                //highlight-end
+
+                .create(fairyItemRegistry);
+    }
+```
+
+![Block Place](img/block-place.gif)
+
+Hella cool! you should've also noticed in the gif, it's not checking by item type, but NBT instead, so no worries about how it's being used!
+
+### Custom Events
+
+Now here comes, custom events! Let's say...
+Whenever I was damaged by other entities, if I held this item, I should be immune to the damage!
+
+```java
+    public void createItem() {
+        this.customItem = FairyItem.builder("my_custom_item")
+                .item(ItemBuilder.of(Material.DIAMOND_BLOCK)
+                        .name("&6&lYou are immune!")
+                        .lore("&7This item makes you immune to entity damage!")
+                )
+
+                //highlight-start
+                .behaviour(ItemBehaviour.ofEvent(PlayerDamageByEntityEvent.class, (event, behaviour) -> {
+                    Player player = event.getPlayer();
+                    ItemStack itemStack = player.getInventory().getItemInMainHand();
+
+                    // Check if the player is holding the custom item
+                    if (behaviour.matches(player, itemStack)) {
+                        player.sendMessage(CC.GOLD + "You have been damaged by a player with the custom item! immune!");
+                        event.setCancelled(true);
+                    }
+                }))
+                //highlight-end
+
+                .create(fairyItemRegistry);
+    }
+```
+
+![Custom Event](img/custom-event.gif)
+
+Very easy! right?
+
+---
+## Metadata
+
+You can also add metadata to the item, so for example, if you want to do some detection if it's kit item, you can use metadata directly.
+
+```java
+    /**
+      * The dependency to identify the item as a FairyItem
+      */
+    private final FairyItemIdentifier fairyItemIdentifier;
+    private final FairyItemRegistry fairyItemRegistry;
+
+    private final MetadataKey<Boolean> KIT_KEY = MetadataKey.create("kit_key", Boolean.class);
+
+    public void createItem() {
+        FairyItem.builder("my_custom_item")
+                .item(ItemBuilder.of(Material.DIAMOND_BLOCK))
+                //highlight-next-line
+                .put(KIT_KEY, true)
+                .create(fairyItemRegistry);
+
+        FairyItem.builder("my_custom_item_2")
+                .item(ItemBuilder.of(Material.DIAMOND_BLOCK))
+                //highlight-next-line
+                .put(KIT_KEY, true)
+                .create(fairyItemRegistry);
+    }
+
+    public boolean isKitItem(ItemStack itemStack) {
+        FairyItem fairyItem = fairyItemIdentifier.get(itemStack);
+        //highlight-next-line
+        if (fairyItem != null && fairyItem.getMetadataMap().has(KIT_KEY)) {
+            // It will return true if it's my_custom_item or my_custom_item_2 since it has the KIT_KEY
+            return true;
+        }
+        return false;
+    }
+```
