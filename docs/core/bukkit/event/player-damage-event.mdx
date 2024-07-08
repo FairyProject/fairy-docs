@@ -1,0 +1,61 @@
+---
+sidebar_position: 5
+description: Player damage for Bukkit environment
+---
+
+# Player Damage
+
+This is straightforward, who wants to detect if the entity is a player every time? We provide a simple way that would save you time and effort.
+
+---
+## PlayerDamageEvent
+
+A generic event that is triggered when a player is damaged, every damage event from a player will trigger this event.
+
+```java
+@EventHandler
+public void onPlayerDamage(PlayerDamageEvent event) {
+    Player player = event.getPlayer();
+    // Do something
+}
+```
+
+---
+## PlayerDamageByEntityEvent
+
+An event that is triggered when a player is damaged by an entity.
+
+:::warning
+
+Only triggers when the damager is **NOT** a player or not indirectly damaged by a player. (projectile, etc.)
+
+:::
+
+```java
+@EventHandler
+public void onPlayerDamageByEntity(PlayerDamageByEntityEvent event) {
+    Player player = event.getPlayer();
+    Entity damager = event.getDamager();
+    // Do something
+}
+```
+
+---
+## PlayerDamageByPlayerEvent
+
+An event that is triggered when a player is damaged by another player.
+
+:::tip
+
+This included when the player is indirectly damaged by another player. (projectile, etc.)
+
+:::
+
+```java
+@EventHandler
+public void onPlayerDamageByPlayer(PlayerDamageByPlayerEvent event) {
+    Player player = event.getPlayer();
+    Player damager = event.getDamager();
+    // Do something
+}
+```
