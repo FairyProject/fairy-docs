@@ -1,0 +1,126 @@
+---
+sidebar_position: 5
+description: Metadata is a powerful feature in Fairy that allows you to define metadata.
+---
+
+# Metadata
+
+Metadata is a set of data that describes and gives information about other data.
+In Fairy, metadata is a powerful feature that allows you to define temporary information about an object.
+
+---
+## Basic Concept
+
+The entire metadata system has separated to 3 main components:
+- **MetaKey**: A key that represents the metadata type, it must be pre-defined to read and write metadata.
+- **MetaStorage**: A storage that stores metadata.
+- **MetaRegistry**: A registry that stores all MetaStorage instances, it's a key-value pair where the key is the identifier of the object and the value is the MetaStorage.
+
+Now let's break them down.
+
+---
+## MetaKey
+
+As said in [Basic Concept](#basic-concept), MetaKey is a key that represents the metadata type.
+It must be pre-defined, and you'll need to key instance to read and write from MetaStorage.
+
+Here's an example of defining a MetaKey:
+
+```java
+import io.fairyproject.data.MetaKey;
+
+public class MyMetaKeys {
+    public static final MetaKey<String> MY_KEY = MetaKey.create("plugin:my_key", String.class);
+}
+```
+
+In the example above, we defined a MetaKey with the identifier `plugin:my_key` and the type `String`.
+Now let's see how to use it.
+
+---
+## MetaStorage
+
+We have the key from the last section, now we need a storage to store the metadata.
+
+Here's an example of using MetaStorage:
+
+```java
+import io.fairyproject.data.MetaStorage;
+
+public class MyMetaStorage {
+    private final MetaStorage storage = MetaStorage.create();
+
+    public void setMyKey(String value) {
+        storage.set(MyMetaKeys.MY_KEY, value);
+    }
+
+    public String getMyKey() {
+        return storage.get(MyMetaKeys.MY_KEY);
+    }
+}
+```
+
+In the example above, we created a MetaStorage instance and set a value to the MetaKey `MY_KEY`.
+Then we get the value from the MetaKey `MY_KEY`.
+So whenever we called `getMyKey()`, it will return the value we set before using `setMyKey(value)`.
+
+:::tip
+
+Make sure to predefine all MetaKey instances before creating any MetaStorage instance.
+MetaStorage is designed with arrays, and it will populate with the size of the amount of the MetaKey instances fairy has.
+If any keys are added after the MetaStorage is created, regrowing the array will be needed, which is not efficient.
+
+:::
+
+---
+## MetaRegistry
+
+We have the key and the storage, now what if we don't have a reference to the storage?
+That's where MetaRegistry comes in.
+
+Here's an example of using MetaRegistry:
+
+```java
+import io.fairyproject.data.MetaRegistry;
+
+public class MyMetaRegistry {
+    private final MetaRegistry<UUID> registry = MetaRegistry.create(UUID.class);
+
+    // We use bukkit's Player class as an example
+    public void setMyKey(Player player, String value) {
+        registry.provide(player.getUniqueID()).set(MyMetaKeys.MY_KEY, value);
+    }
+
+    public String getMyKey(Player player) {
+        return registry.provide(player.getUniqueID()).get(MyMetaKeys.MY_KEY);
+    }
+}
+```
+
+And tada! We have custom metadata for each players!
+With Fairy metadata, we saved a lot of hassle to store metadata for each object.
+
+### You don't need to do this
+If you are Minecraft plugins developer, you don't need to code registries for players, worlds, entities, etc. by your self.
+[We have it covered for you](/core/minecraft/metadata).
+
+---
+## Technical Details
+
+Fairy metadata system is designed to be fast and efficient.
+A lot of environments using tends to be more single thread based architecture,
+So the system is designed to be extremely fast and efficient for single-thread operations,
+and similar performance to ConcurrentHashMap for multi-thread operations.
+
+### Concurrency
+The metadata system is thread-safe, so you don't need to worry about concurrency issues.
+Accessing metadata from multiple threads is safe and efficient.
+
+### Comparison with ConcurrentHashMap
+It's 325% faster than ConcurrentHashMap for single-thread operations.
+And 20% slower than ConcurrentHashMap for multi-thread operations.
+
+---
+Now you know how to use metadata in Fairy! 🎉
+But there's more to it, you can also define collection metadata in Fairy.
+Check out the [Collection Metadata](/core/metadata/collection) page to learn more about it!

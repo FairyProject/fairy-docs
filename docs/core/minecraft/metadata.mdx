@@ -1,0 +1,51 @@
+---
+sidebar_position: 2
+description: An extension of the metadata system in Fairy for Minecraft plugins.
+---
+
+# MCMetadata
+
+If you read the [Metadata](/docs/core/metadata) page, you know you can introduce MetaRegistry to reference MetaStorage instances by the object identifier.
+But isn't it still a hassle? 🤔 If I want to get the metadata of the player, I need to code a registry, and get the MetaStorage instance from the MetaRegistry, then finally get the metadata from the MetaStorage.
+
+No worries! Fairy has it covered for you! 🎉
+
+---
+## Metadata for Minecraft
+
+Fairy has a built-in metadata system for Minecraft plugins. You can access the metadata of the player, world, entity, blocks etc. predefined registries by Fairy.
+
+With the class **`io.fairyproject.mc.data.MCMetadata`**, you can access the metadata for anything in Minecraft.
+Here's an example of using the metadata system in Minecraft:
+
+```java
+import io.fairyproject.mc.data.MCMetadata;
+
+public class Test {
+    public void test() {
+        // Get it directly from MCPlayer / bukkit Player!
+        MetaStorage bukkitPlayerStorage = MCMetadata.provide(player);
+
+        bukkitPlayerStorage.set(MyMetaKeys.MY_KEY, "Hello, Fairy!");
+        bukkitPlayerStorage.get(MyMetaKeys.MY_KEY);
+
+        // Or get it from the MCWorld / bukkit World!
+        MetaStorage bukkitWorldStorage = MCMetadata.provide(world);
+        // Or MCEntity / bukkit Entity!
+        MetaStorage bukkitEntityStorage = MCMetadata.provide(entity);
+        // Or BlockPosition / Block!
+        MetaStorage bukkitBlockStorage = MCMetadata.provide(block);
+        // Or from player UUID!
+        MetaStorage bukkitPlayerStorage = MCMetadata.providePlayer(player.getUniqueID());
+    }
+}
+```
+
+And tada! You can access the metadata of the player, world, entity, blocks etc. without the need to code a registry for each object.
+
+:::info
+
+The metadata registry won't unregister the metadata when the object is removed from the world.
+You need to manually remove the metadata from the storage whenever needed.
+
+:::

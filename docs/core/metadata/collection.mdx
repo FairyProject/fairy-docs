@@ -1,0 +1,75 @@
+---
+sidebar_position: 1
+description: Define collection metadata in Fairy.
+---
+
+# Collection Keys
+
+Collection keys are a set of keys that represent the metadata type for a collection, for you to have easier access to the metadata of a collection.
+
+---
+## List Key
+
+Here's an example of defining a collection key for a list:
+
+```java
+public class ListKeyTest {
+    public static final MetaListKey<String> LIST_KEY = MetaKey.createList("plugin:list_key", String.class);
+
+    public void test() {
+        MetaStorage storage = MetaStorage.create();
+        LIST_KEY.add(storage, "Hello, Fairy!");
+        LIST_KEY.add(storage, "I'm a list!");
+
+        List<String> list = storage.get(LIST_KEY);
+        list.forEach(System.out::print); // Hello, Fairy! I'm a list!
+
+        LIST_KEY.clear();
+    }
+}
+```
+
+---
+## Set Key
+
+Here's an example of defining a collection key for a set:
+
+```java
+public class SetKeyTest {
+    public static final MetaSetKey<String> SET_KEY = MetaKey.createSet("plugin:set_key", String.class);
+
+    public void test() {
+        MetaStorage storage = MetaStorage.create();
+        SET_KEY.add(storage, "Hello, Fairy!");
+        SET_KEY.add(storage, "I'm a set!");
+        SET_KEY.add(storage, "Hello, Fairy!");
+
+        Set<String> set = storage.get(SET_KEY);
+        set.forEach(System.out::print); // Hello, Fairy! I'm a set!
+
+        SET_KEY.clear();
+    }
+}
+```
+
+---
+## Map Key
+
+Here's an example of defining a collection key for a map:
+
+```java
+public class MapKeyTest {
+    public static final MetaMapKey<String, Integer> MAP_KEY = MetaKey.createMap("plugin:map_key", String.class, Integer.class);
+
+    public void test() {
+        MetaStorage storage = MetaStorage.create();
+        MAP_KEY.put(storage, "Hello", 1);
+        MAP_KEY.put(storage, "Fairy", 2);
+
+        Map<String, Integer> map = storage.get(MAP_KEY);
+        map.forEach((key, value) -> System.out.println(key + ": " + value)); // Hello: 1, Fairy: 2
+
+        MAP_KEY.clear();
+    }
+}
+```
