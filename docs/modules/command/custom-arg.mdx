@@ -62,17 +62,18 @@ If you've previously missed the last tutorial on the basics of commands, we high
 public class TestCommand extends BaseCommand {
 
     @Arg("name")
-    private String name;
+    private ArgProperty<String> name;
 
     @Autowired
     private UserService userService;
 
-    @Override
-    public void onHelp(CommandContext sctx) {
+    @Command("#")
+    public void onNoSubCommand(CommandContext sctx) {
+        final String name = sctx.getProperty(this.name);
         final User user = userService.getUser(name);
 
         if (user == null) {
-            sctx.sendMessage(MessageType.ERROR, String.format("Could not find user of name %s!", user.getName()));
+            sctx.sendMessage(MessageType.ERROR, String.format("Could not find user of name %s!", name));
             return;
         }
 
@@ -140,10 +141,12 @@ the following:
 public class TestCommand extends BaseCommand {
 
     @Arg("user")
-    private User user;
+    private ArgProperty<User> user;
 
     @Override
     public void onHelp(CommandContext sctx) {
+        User user = sctx.getProperty(this.user);
+
         sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", user.getName()));
     }
 }

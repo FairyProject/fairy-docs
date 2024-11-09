@@ -80,8 +80,8 @@ By default, you must extend the `BaseCommand`, as seen below
 @Command(value = "testfairy", permissionNode = "fairy.test")
 public class TestCommand extends BaseCommand {
 
-    @Override
-    public void onHelp(CommandContext sctx) {
+    @Command("#")
+    public void onNoSubCommand(CommandContext sctx) {
         sctx.sendMessage(MessageType.INFO, "Halo!");
     }
 
@@ -98,7 +98,7 @@ First, lets deconstruct our annotations:
 ---
 ## Adding a parameter to your command
 
-Alright, now that you've written your first command, you may want to add a paramter to it. Perhaps lets say you wish to say hello to someone in particular!
+Alright, now that you've written your first command, you may want to add a parameter to it. Perhaps lets say you wish to say hello to someone in particular!
 
 Now, we would want our command to look like this:
 ```s
@@ -118,11 +118,11 @@ In the fairy framework, this is *super* easy to add.
 public class TestCommand extends BaseCommand {
 
     @Arg("name") 
-    private String name;
+    private ArgProperty<String> name;
 
-    @Override
-    public void onHelp(CommandContext sctx) {
-        sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", name));
+    @Command("#")
+    public void onNoSubCommand(CommandContext sctx) {
+        sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", sctx.getProperty(name)));
     }
 
 }
