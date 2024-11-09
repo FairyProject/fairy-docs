@@ -40,6 +40,11 @@ public class TestCommand extends BaseCommand {
     public void create(CommandContext context) {
         context.sendMessage(MessageType.INFO, "Goodbye user!");
     }
+
+    @Command(value = "say", permissionNode = "fairy.test.say")
+    public void create(CommandContext context, @Arg("name") String name) {
+        context.sendMessage(MessageType.INFO, "Say user " + name);
+    }
 }
 ```
 

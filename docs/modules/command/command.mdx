@@ -128,6 +128,20 @@ public class TestCommand extends BaseCommand {
 }
 ```
 
+Alternatively, you may also use the `@Arg` annotation directly on the method without the need of ArgProperty, as seen below:
+```java
+@InjectableComponent
+@Command(value = "testfairy", permissionNode = "fairy.test")
+public class TestCommand extends BaseCommand {
+
+    @Command("#")
+    public void onNoSubCommand(CommandContext sctx, @Arg("name") String name) {
+        sctx.sendMessage(MessageType.INFO, String.format("Halo %s!", name));
+    }
+
+}
+```
+
 As you can see, at the click of an annotation, you are capable of adding arguments, whether it be any of the following types:
 - `Boolean`: Values accepted: "true", "on", "yes", "false", "off", "no"
 - `Double`: Values accepted: Any double formatted "0.001" etc. NaN, Infinity and "E" values are rejected.
