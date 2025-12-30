@@ -1,0 +1,737 @@
+---
+sidebar_position: 1
+description: Multi-language support for Minecraft plugins with automatic locale detection.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Locale (Multi-Language)
+
+Fairy's locale module provides a comprehensive internationalization (i18n) system for Minecraft plugins. It supports automatic player locale detection, multiple storage backends, and flexible translation management.
+
+---
+
+## Overview
+
+The locale system offers:
+
+- **Automatic locale detection** - Detects player's client language automatically
+- **Multiple storage formats** - YAML, Properties, or custom implementations
+- **Placeholder support** - Variable substitution in translations
+- **Fallback mechanism** - Falls back to default locale when translation is missing
+- **Hot reload** - Reload translations without server restart
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:mc-locale")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:mc-locale'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Create Translation Files
+
+Create translation files in your plugin's resources folder:
+
+```
+resources/
+└── locales/
+    ├── en_US.yml
+    ├── zh_CN.yml
+    └── ko_KR.yml
+```
+
+**en_US.yml:**
+```yaml
+messages:
+  welcome: "Welcome to the server, {player}!"
+  balance: "Your balance: ${amount}"
+  no-permission: "You don't have permission to do that."
+
+commands:
+  help:
+    header: "=== Help Menu ==="
+    usage: "Usage: {usage}"
+```
+
+**zh_CN.yml:**
+```yaml
+messages:
+  welcome: "欢迎来到服务器，{player}！"
+  balance: "你的余额：${amount}"
+  no-permission: "你没有权限执行此操作。"
+
+commands:
+  help:
+    header: "=== 帮助菜单 ==="
+    usage: "用法：{usage}"
+```
+
+### 3. Use LocaleService
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.locale.LocaleService;
+import org.bukkit.entity.Player;
+
+@InjectableComponent
+public class WelcomeService {
+
+    private final LocaleService localeService;
+
+    public WelcomeService(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    public void welcomePlayer(Player player) {
+        String message = localeService.get(player, "messages.welcome")
+                .replace("{player}", player.getName());
+        player.sendMessage(message);
+    }
+}
+```
+
+---
+
+## Configuration
+
+### LocaleService Setup
+
+Configure the locale service in your plugin:
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.locale.LocaleService;
+import io.fairyproject.locale.TranslationManager;
+import jakarta.annotation.PostConstruct;
+import org.bukkit.plugin.Plugin;
+
+import java.util.Locale;
+
+@InjectableComponent
+public class LocaleConfig {
+
+    private final Plugin plugin;
+    private final LocaleService localeService;
+
+    public LocaleConfig(Plugin plugin, LocaleService localeService) {
+        this.plugin = plugin;
+        this.localeService = localeService;
+    }
+
+    @PostConstruct
+    public void setup() {
+        // Set the default locale (fallback)
+        localeService.setDefaultLocale(Locale.ENGLISH);
+
+        // Register translation files
+        localeService.registerTranslations(plugin, "locales");
+
+        // Or register individual locales
+        localeService.registerTranslation(plugin, Locale.ENGLISH, "locales/en_US.yml");
+        localeService.registerTranslation(plugin, Locale.SIMPLIFIED_CHINESE, "locales/zh_CN.yml");
+    }
+}
+```
+
+### Supported Locales
+
+Common Minecraft client locales:
+
+| Locale Code | Language | Java Locale |
+|-------------|----------|-------------|
+| `en_US` | English (US) | `Locale.US` |
+| `en_GB` | English (UK) | `Locale.UK` |
+| `zh_CN` | Chinese (Simplified) | `Locale.SIMPLIFIED_CHINESE` |
+| `zh_TW` | Chinese (Traditional) | `Locale.TRADITIONAL_CHINESE` |
+| `ko_KR` | Korean | `Locale.KOREA` |
+| `ja_JP` | Japanese | `Locale.JAPAN` |
+| `de_DE` | German | `Locale.GERMANY` |
+| `fr_FR` | French | `Locale.FRANCE` |
+| `es_ES` | Spanish | `new Locale("es", "ES")` |
+| `pt_BR` | Portuguese (Brazil) | `new Locale("pt", "BR")` |
+| `ru_RU` | Russian | `new Locale("ru", "RU")` |
+
+---
+
+## Translation Manager
+
+The `TranslationManager` provides low-level control over translations:
+
+```java
+import io.fairyproject.locale.TranslationManager;
+
+@InjectableComponent
+public class TranslationService {
+
+    private final TranslationManager translationManager;
+
+    public TranslationService(TranslationManager translationManager) {
+        this.translationManager = translationManager;
+    }
+
+    public void loadCustomTranslations() {
+        // Load from a custom source
+        Map<String, String> translations = new HashMap<>();
+        translations.put("custom.key", "Custom Value");
+
+        translationManager.addTranslations(Locale.ENGLISH, translations);
+    }
+
+    public String getTranslation(Locale locale, String key) {
+        return translationManager.get(locale, key);
+    }
+
+    public boolean hasTranslation(Locale locale, String key) {
+        return translationManager.has(locale, key);
+    }
+}
+```
+
+---
+
+## Storage Backends
+
+### YAML Resource Bundle (Default)
+
+YAML files are the recommended format for translations:
+
+```java
+import io.fairyproject.locale.resource.YamlResourceBundle;
+
+// Automatically loaded when using localeService.registerTranslations()
+```
+
+**File structure:**
+```yaml
+# Nested keys are supported
+category:
+  subcategory:
+    key: "Value"
+
+# Direct keys also work
+simple-key: "Simple value"
+
+# Multi-line strings
+long-text: |
+  This is a long text
+  that spans multiple lines.
+```
+
+### Properties Resource Bundle
+
+For traditional properties file format:
+
+```java
+import io.fairyproject.locale.resource.PropertiesResourceBundle;
+
+// en_US.properties
+// messages.welcome=Welcome to the server!
+// messages.goodbye=Goodbye, see you soon!
+```
+
+### Custom Resource Bundle
+
+Implement your own storage backend:
+
+```java
+import io.fairyproject.locale.resource.ResourceBundle;
+
+public class DatabaseResourceBundle implements ResourceBundle {
+
+    private final Map<String, String> translations = new HashMap<>();
+
+    public DatabaseResourceBundle(Database database, Locale locale) {
+        // Load translations from database
+        database.getTranslations(locale.toString()).forEach(row -> {
+            translations.put(row.getKey(), row.getValue());
+        });
+    }
+
+    @Override
+    public String get(String key) {
+        return translations.get(key);
+    }
+
+    @Override
+    public boolean has(String key) {
+        return translations.containsKey(key);
+    }
+
+    @Override
+    public Set<String> getKeys() {
+        return translations.keySet();
+    }
+}
+```
+
+---
+
+## Player Locale Detection
+
+### Automatic Detection
+
+Fairy automatically detects player locale from their Minecraft client settings:
+
+```java
+@InjectableComponent
+public class LocaleAwareService {
+
+    private final LocaleService localeService;
+
+    public LocaleAwareService(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    public void sendLocalizedMessage(Player player, String key) {
+        // Automatically uses player's client locale
+        String message = localeService.get(player, key);
+        player.sendMessage(message);
+    }
+
+    public Locale getPlayerLocale(Player player) {
+        return localeService.getLocale(player);
+    }
+}
+```
+
+### Manual Locale Override
+
+Allow players to choose their preferred language:
+
+```java
+@InjectableComponent
+public class LocalePreferenceService {
+
+    private final LocaleService localeService;
+    private final Map<UUID, Locale> playerPreferences = new ConcurrentHashMap<>();
+
+    public LocalePreferenceService(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    public void setPlayerLocale(Player player, Locale locale) {
+        playerPreferences.put(player.getUniqueId(), locale);
+        localeService.setLocale(player, locale);
+    }
+
+    public void clearPlayerLocale(Player player) {
+        playerPreferences.remove(player.getUniqueId());
+        localeService.resetLocale(player);  // Back to auto-detection
+    }
+}
+```
+
+---
+
+## Placeholder System
+
+### Basic Placeholders
+
+```java
+public void sendWelcome(Player player) {
+    String message = localeService.get(player, "messages.welcome")
+            .replace("{player}", player.getName())
+            .replace("{server}", Bukkit.getServerName());
+    player.sendMessage(message);
+}
+```
+
+### Using MessageFormat
+
+For more complex formatting with numbers and dates:
+
+```yaml
+# en_US.yml
+messages:
+  balance: "Balance: {0,number,currency}"
+  joined: "Joined: {0,date,medium}"
+  players-online: "{0,choice,0#No players|1#1 player|1<{0} players} online"
+```
+
+```java
+import java.text.MessageFormat;
+
+public void sendBalance(Player player, double amount) {
+    String pattern = localeService.get(player, "messages.balance");
+    Locale locale = localeService.getLocale(player);
+
+    String message = new MessageFormat(pattern, locale).format(new Object[]{amount});
+    player.sendMessage(message);
+}
+```
+
+### Custom Placeholder Resolver
+
+Create a reusable placeholder system:
+
+```java
+@InjectableComponent
+public class MessageService {
+
+    private final LocaleService localeService;
+
+    public MessageService(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    public void send(Player player, String key, Object... args) {
+        String message = localeService.get(player, key);
+
+        // Replace indexed placeholders {0}, {1}, etc.
+        for (int i = 0; i < args.length; i++) {
+            message = message.replace("{" + i + "}", String.valueOf(args[i]));
+        }
+
+        player.sendMessage(message);
+    }
+
+    public void send(Player player, String key, Map<String, Object> placeholders) {
+        String message = localeService.get(player, key);
+
+        for (Map.Entry<String, Object> entry : placeholders.entrySet()) {
+            message = message.replace("{" + entry.getKey() + "}", String.valueOf(entry.getValue()));
+        }
+
+        player.sendMessage(message);
+    }
+}
+```
+
+**Usage:**
+```java
+// Indexed placeholders
+messageService.send(player, "messages.transfer", sender.getName(), amount, receiver.getName());
+
+// Named placeholders
+messageService.send(player, "messages.welcome", Map.of(
+    "player", player.getName(),
+    "server", "MyServer"
+));
+```
+
+---
+
+## Fallback Mechanism
+
+When a translation is missing, Fairy uses a fallback chain:
+
+```
+Player Locale → Default Locale → Key Name
+```
+
+```java
+@InjectableComponent
+public class FallbackExample {
+
+    private final LocaleService localeService;
+
+    public FallbackExample(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    @PostConstruct
+    public void setup() {
+        // Configure fallback behavior
+        localeService.setDefaultLocale(Locale.ENGLISH);
+        localeService.setReturnKeyOnMissing(true);  // Return key name if not found
+    }
+
+    public void demonstrateFallback(Player player) {
+        // If player locale is zh_CN and "messages.special" doesn't exist in zh_CN.yml
+        // It will try en_US.yml (default locale)
+        // If still not found, returns "messages.special" (the key itself)
+        String message = localeService.get(player, "messages.special");
+    }
+}
+```
+
+---
+
+## Hot Reload
+
+Reload translations without restarting the server:
+
+```java
+@InjectableComponent
+public class LocaleReloadCommand {
+
+    private final LocaleService localeService;
+    private final Plugin plugin;
+
+    public LocaleReloadCommand(LocaleService localeService, Plugin plugin) {
+        this.localeService = localeService;
+        this.plugin = plugin;
+    }
+
+    public void reloadLocales(CommandSender sender) {
+        // Clear existing translations
+        localeService.clearTranslations();
+
+        // Re-register translations
+        localeService.registerTranslations(plugin, "locales");
+
+        sender.sendMessage("Locales reloaded!");
+    }
+}
+```
+
+---
+
+## Integration with Commands
+
+Use locale in Fairy commands:
+
+```java
+import io.fairyproject.command.annotation.*;
+
+@Command("language")
+@InjectableComponent
+public class LanguageCommand {
+
+    private final LocaleService localeService;
+
+    public LanguageCommand(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    @CommandHandler
+    @CommandPresence(PlayerPresence.class)
+    public void setLanguage(Player player, @Arg("locale") String localeCode) {
+        try {
+            Locale locale = Locale.forLanguageTag(localeCode.replace("_", "-"));
+            localeService.setLocale(player, locale);
+
+            String message = localeService.get(player, "commands.language.changed");
+            player.sendMessage(message);
+        } catch (Exception e) {
+            player.sendMessage(localeService.get(player, "commands.language.invalid"));
+        }
+    }
+
+    @TabComplete
+    public List<String> tabComplete(Player player, @Arg("locale") String partial) {
+        return List.of("en_US", "zh_CN", "zh_TW", "ko_KR", "ja_JP", "de_DE", "fr_FR")
+                .stream()
+                .filter(l -> l.toLowerCase().startsWith(partial.toLowerCase()))
+                .collect(Collectors.toList());
+    }
+}
+```
+
+---
+
+## Integration with GUI
+
+Use translations in Bukkit GUIs:
+
+```java
+import io.fairyproject.bukkit.gui.Gui;
+import io.fairyproject.bukkit.gui.GuiFactory;
+import io.fairyproject.bukkit.gui.slot.GuiSlot;
+
+@InjectableComponent
+public class LocalizedGuiService {
+
+    private final GuiFactory guiFactory;
+    private final LocaleService localeService;
+
+    public LocalizedGuiService(GuiFactory guiFactory, LocaleService localeService) {
+        this.guiFactory = guiFactory;
+        this.localeService = localeService;
+    }
+
+    public void openMainMenu(Player player) {
+        String title = localeService.get(player, "gui.main-menu.title");
+
+        Gui gui = guiFactory.create(title, 3, player);
+
+        gui.slot(13, GuiSlot.of(
+                new ItemBuilder(Material.COMPASS)
+                        .name(localeService.get(player, "gui.main-menu.settings.name"))
+                        .lore(localeService.get(player, "gui.main-menu.settings.lore"))
+                        .build(),
+                event -> openSettings(player)
+        ));
+
+        gui.open(player);
+    }
+}
+```
+
+---
+
+## Complete Example
+
+A full example of a localized plugin:
+
+```java
+// LocaleConfig.java
+@InjectableComponent
+public class LocaleConfig {
+
+    private final Plugin plugin;
+    private final LocaleService localeService;
+
+    public LocaleConfig(Plugin plugin, LocaleService localeService) {
+        this.plugin = plugin;
+        this.localeService = localeService;
+    }
+
+    @PostConstruct
+    public void setup() {
+        localeService.setDefaultLocale(Locale.ENGLISH);
+        localeService.registerTranslations(plugin, "locales");
+    }
+}
+
+// MessageService.java
+@InjectableComponent
+public class MessageService {
+
+    private final LocaleService localeService;
+
+    public MessageService(LocaleService localeService) {
+        this.localeService = localeService;
+    }
+
+    public void send(Player player, String key) {
+        player.sendMessage(localeService.get(player, key));
+    }
+
+    public void send(Player player, String key, Map<String, Object> placeholders) {
+        String message = localeService.get(player, key);
+        for (Map.Entry<String, Object> entry : placeholders.entrySet()) {
+            message = message.replace("{" + entry.getKey() + "}", String.valueOf(entry.getValue()));
+        }
+        player.sendMessage(message);
+    }
+
+    public void broadcast(String key) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            send(player, key);
+        }
+    }
+
+    public void broadcast(String key, Map<String, Object> placeholders) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            send(player, key, placeholders);
+        }
+    }
+}
+
+// JoinListener.java
+@InjectableComponent
+@RegisterAsListener
+public class JoinListener implements Listener {
+
+    private final MessageService messageService;
+
+    public JoinListener(MessageService messageService) {
+        this.messageService = messageService;
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        // Send localized welcome message
+        messageService.send(player, "messages.welcome", Map.of(
+            "player", player.getName()
+        ));
+
+        // Broadcast join message to all (in their respective languages)
+        messageService.broadcast("messages.player-joined", Map.of(
+            "player", player.getName()
+        ));
+    }
+}
+```
+
+**Translation files:**
+
+```yaml
+# resources/locales/en_US.yml
+messages:
+  welcome: "&aWelcome to the server, &e{player}&a!"
+  player-joined: "&7{player} joined the game."
+  player-left: "&7{player} left the game."
+
+gui:
+  main-menu:
+    title: "Main Menu"
+    settings:
+      name: "&eSettings"
+      lore: "&7Click to open settings"
+
+commands:
+  language:
+    changed: "&aLanguage updated successfully!"
+    invalid: "&cInvalid locale code."
+```
+
+```yaml
+# resources/locales/zh_CN.yml
+messages:
+  welcome: "&a欢迎来到服务器，&e{player}&a！"
+  player-joined: "&7{player} 加入了游戏。"
+  player-left: "&7{player} 离开了游戏。"
+
+gui:
+  main-menu:
+    title: "主菜单"
+    settings:
+      name: "&e设置"
+      lore: "&7点击打开设置"
+
+commands:
+  language:
+    changed: "&a语言更新成功！"
+    invalid: "&c无效的语言代码。"
+```
+
+---
+
+## Best Practices
+
+1. **Use consistent key naming** - Follow a hierarchical structure like `category.subcategory.key`
+
+2. **Provide all translations** - Ensure every key exists in all supported locales
+
+3. **Use named placeholders** - `{player}` is clearer than `{0}`
+
+4. **Test with multiple locales** - Verify translations display correctly
+
+5. **Handle missing translations gracefully** - Use fallback mechanism
+
+6. **Keep translations in sync** - When adding new keys, add to all locale files
+
+7. **Use color codes sparingly** - Some languages may need different formatting
+
+:::tip Performance
+
+The locale service caches translations internally. Avoid reloading translations frequently in production.
+
+:::
+
+:::warning Thread Safety
+
+`LocaleService` is thread-safe, but be careful when modifying translations at runtime. Use synchronized blocks if needed.
+
+:::

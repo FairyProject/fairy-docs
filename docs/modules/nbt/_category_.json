@@ -1,0 +1,8 @@
+{
+  "label": "NBT",
+  "position": 11,
+  "link": {
+    "type": "generated-index",
+    "description": "Read and write NBT data on items and entities."
+  }
+}

@@ -1,0 +1,611 @@
+---
+sidebar_position: 1
+description: Customize player nametags with prefixes, suffixes, and team colors.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Nametag
+
+Fairy's nametag module allows you to customize player nametags displayed above their heads. It uses Minecraft's scoreboard teams to add prefixes, suffixes, and change name colors without requiring client mods.
+
+---
+
+## Overview
+
+The nametag system offers:
+
+- **Custom prefixes** - Add rank tags, clan tags, or other prefixes
+- **Custom suffixes** - Add level, guild, or status indicators
+- **Name colors** - Change the color of player names
+- **Priority system** - Control display order when multiple tags apply
+- **Viewer-specific tags** - Show different tags to different players
+- **Adapter pattern** - Easy integration with permission/rank plugins
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:mc-nametag")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:mc-nametag'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Create a Nametag Adapter
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.nametag.NameTag;
+import io.fairyproject.mc.nametag.NameTagAdapter;
+import org.bukkit.entity.Player;
+
+@InjectableComponent
+public class RankNameTagAdapter implements NameTagAdapter {
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        // target = the player whose nametag we're customizing
+        // viewer = the player who will see this nametag
+
+        if (target.hasPermission("rank.admin")) {
+            return NameTag.builder()
+                    .prefix("&c[Admin] ")
+                    .color(ChatColor.RED)
+                    .build();
+        } else if (target.hasPermission("rank.vip")) {
+            return NameTag.builder()
+                    .prefix("&6[VIP] ")
+                    .color(ChatColor.GOLD)
+                    .build();
+        }
+
+        return NameTag.builder()
+                .prefix("&7")
+                .color(ChatColor.GRAY)
+                .build();
+    }
+
+    @Override
+    public int priority() {
+        return 100;  // Higher priority = processed first
+    }
+}
+```
+
+---
+
+## NameTagAdapter Interface
+
+The `NameTagAdapter` defines how nametags are generated:
+
+```java
+public interface NameTagAdapter {
+
+    /**
+     * Fetch the nametag for a target player as seen by a viewer
+     *
+     * @param target The player whose nametag to customize
+     * @param viewer The player viewing the nametag
+     * @return The nametag configuration, or null to skip this adapter
+     */
+    NameTag fetch(Player target, Player viewer);
+
+    /**
+     * Priority of this adapter (higher = processed first)
+     * Default: 0
+     */
+    default int priority() {
+        return 0;
+    }
+}
+```
+
+---
+
+## NameTag Builder
+
+### Basic Nametag
+
+```java
+NameTag tag = NameTag.builder()
+        .prefix("&c[Admin] ")
+        .suffix(" &7[Lv.50]")
+        .color(ChatColor.RED)
+        .build();
+```
+
+### Available Options
+
+| Method | Description | Example |
+|--------|-------------|---------|
+| `prefix(String)` | Text before the name | `"[Admin] "` |
+| `suffix(String)` | Text after the name | ` [Lv.50]` |
+| `color(ChatColor)` | Color of the player's name | `ChatColor.RED` |
+
+### Prefix and Suffix Limits
+
+:::warning Character Limits
+
+Due to Minecraft limitations:
+- **1.8 - 1.12**: Prefix/suffix limited to 16 characters each
+- **1.13+**: Prefix/suffix limited to 64 characters each
+
+Plan your prefix/suffix lengths accordingly.
+
+:::
+
+---
+
+## Multiple Adapters
+
+Register multiple adapters for different systems:
+
+```java
+// Rank adapter (high priority)
+@InjectableComponent
+public class RankNameTagAdapter implements NameTagAdapter {
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        String rank = getRank(target);
+        return NameTag.builder()
+                .prefix(getRankPrefix(rank))
+                .color(getRankColor(rank))
+                .build();
+    }
+
+    @Override
+    public int priority() {
+        return 100;  // High priority
+    }
+}
+
+// Guild adapter (lower priority, adds suffix)
+@InjectableComponent
+public class GuildNameTagAdapter implements NameTagAdapter {
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        Guild guild = getGuild(target);
+        if (guild == null) return null;  // Skip if no guild
+
+        return NameTag.builder()
+                .suffix(" &8[&f" + guild.getTag() + "&8]")
+                .build();
+    }
+
+    @Override
+    public int priority() {
+        return 50;  // Lower priority
+    }
+}
+```
+
+### Priority Resolution
+
+When multiple adapters return values:
+1. Higher priority adapters are processed first
+2. Non-null prefix/suffix/color values override lower priority ones
+3. Return `null` from an adapter to skip it entirely
+
+---
+
+## Viewer-Specific Tags
+
+Show different nametags based on who's viewing:
+
+```java
+@InjectableComponent
+public class RelationNameTagAdapter implements NameTagAdapter {
+
+    private final FactionService factionService;
+
+    public RelationNameTagAdapter(FactionService factionService) {
+        this.factionService = factionService;
+    }
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        Faction targetFaction = factionService.getFaction(target);
+        Faction viewerFaction = factionService.getFaction(viewer);
+
+        if (targetFaction == null || viewerFaction == null) {
+            return NameTag.builder().color(ChatColor.WHITE).build();
+        }
+
+        // Same faction = green
+        if (targetFaction.equals(viewerFaction)) {
+            return NameTag.builder()
+                    .prefix("&a[" + targetFaction.getTag() + "] ")
+                    .color(ChatColor.GREEN)
+                    .build();
+        }
+
+        // Allied faction = blue
+        if (factionService.isAllied(viewerFaction, targetFaction)) {
+            return NameTag.builder()
+                    .prefix("&b[" + targetFaction.getTag() + "] ")
+                    .color(ChatColor.AQUA)
+                    .build();
+        }
+
+        // Enemy faction = red
+        if (factionService.isEnemy(viewerFaction, targetFaction)) {
+            return NameTag.builder()
+                    .prefix("&c[" + targetFaction.getTag() + "] ")
+                    .color(ChatColor.RED)
+                    .build();
+        }
+
+        // Neutral = white
+        return NameTag.builder()
+                .prefix("&7[" + targetFaction.getTag() + "] ")
+                .color(ChatColor.WHITE)
+                .build();
+    }
+}
+```
+
+---
+
+## Manual Updates
+
+### Update Specific Player
+
+```java
+import io.fairyproject.mc.nametag.NameTagService;
+
+@InjectableComponent
+public class RankUpdateListener {
+
+    private final NameTagService nameTagService;
+
+    public RankUpdateListener(NameTagService nameTagService) {
+        this.nameTagService = nameTagService;
+    }
+
+    public void onRankChange(Player player) {
+        // Update this player's nametag for all viewers
+        nameTagService.update(player);
+    }
+}
+```
+
+### Update for Specific Viewer
+
+```java
+// Update how a specific viewer sees a target
+nameTagService.update(target, viewer);
+```
+
+### Refresh All Players
+
+```java
+// Refresh all nametags (use sparingly)
+nameTagService.updateAll();
+```
+
+---
+
+## Integration Examples
+
+### LuckPerms Integration
+
+```java
+@InjectableComponent
+public class LuckPermsNameTagAdapter implements NameTagAdapter {
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        LuckPerms lp = LuckPermsProvider.get();
+        User user = lp.getUserManager().getUser(target.getUniqueId());
+
+        if (user == null) return null;
+
+        String prefix = user.getCachedData().getMetaData().getPrefix();
+        String suffix = user.getCachedData().getMetaData().getSuffix();
+
+        NameTag.Builder builder = NameTag.builder();
+
+        if (prefix != null) {
+            builder.prefix(translateColors(prefix));
+        }
+
+        if (suffix != null) {
+            builder.suffix(translateColors(suffix));
+        }
+
+        // Get primary group color
+        String primaryGroup = user.getPrimaryGroup();
+        ChatColor color = getGroupColor(primaryGroup);
+        if (color != null) {
+            builder.color(color);
+        }
+
+        return builder.build();
+    }
+
+    private String translateColors(String text) {
+        return ChatColor.translateAlternateColorCodes('&', text);
+    }
+
+    private ChatColor getGroupColor(String group) {
+        return switch (group.toLowerCase()) {
+            case "admin" -> ChatColor.RED;
+            case "mod" -> ChatColor.BLUE;
+            case "vip" -> ChatColor.GOLD;
+            default -> ChatColor.GRAY;
+        };
+    }
+
+    @Override
+    public int priority() {
+        return 100;
+    }
+}
+```
+
+### Vanish System Integration
+
+```java
+@InjectableComponent
+public class VanishNameTagAdapter implements NameTagAdapter {
+
+    private final VanishService vanishService;
+
+    public VanishNameTagAdapter(VanishService vanishService) {
+        this.vanishService = vanishService;
+    }
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        // If target is vanished and viewer can see them
+        if (vanishService.isVanished(target) && viewer.hasPermission("staff.see.vanished")) {
+            return NameTag.builder()
+                    .prefix("&8[V] ")
+                    .build();
+        }
+
+        return null;  // Don't modify
+    }
+
+    @Override
+    public int priority() {
+        return 200;  // Very high priority
+    }
+}
+```
+
+---
+
+## Complete Example: Full Rank System
+
+```java
+import io.fairyproject.bukkit.listener.RegisterAsListener;
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.nametag.NameTag;
+import io.fairyproject.mc.nametag.NameTagAdapter;
+import io.fairyproject.mc.nametag.NameTagService;
+import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+@InjectableComponent
+@RegisterAsListener
+public class RankSystem implements NameTagAdapter, Listener {
+
+    private final NameTagService nameTagService;
+    private final Map<UUID, Rank> playerRanks = new HashMap<>();
+
+    public RankSystem(NameTagService nameTagService) {
+        this.nameTagService = nameTagService;
+    }
+
+    // ================ Rank Data ================
+
+    public enum Rank {
+        OWNER("&4[Owner] ", "&4", ChatColor.DARK_RED, 1000),
+        ADMIN("&c[Admin] ", "&c", ChatColor.RED, 900),
+        MOD("&9[Mod] ", "&9", ChatColor.BLUE, 800),
+        HELPER("&b[Helper] ", "&b", ChatColor.AQUA, 700),
+        VIP_PLUS("&6[VIP+] ", "&6", ChatColor.GOLD, 600),
+        VIP("&e[VIP] ", "&e", ChatColor.YELLOW, 500),
+        DEFAULT("&7", "&7", ChatColor.GRAY, 100);
+
+        private final String prefix;
+        private final String chatColor;
+        private final ChatColor nameColor;
+        private final int weight;
+
+        Rank(String prefix, String chatColor, ChatColor nameColor, int weight) {
+            this.prefix = prefix;
+            this.chatColor = chatColor;
+            this.nameColor = nameColor;
+            this.weight = weight;
+        }
+
+        public String getPrefix() { return prefix; }
+        public String getChatColor() { return chatColor; }
+        public ChatColor getNameColor() { return nameColor; }
+        public int getWeight() { return weight; }
+    }
+
+    // ================ Rank Management ================
+
+    public void setRank(Player player, Rank rank) {
+        playerRanks.put(player.getUniqueId(), rank);
+        nameTagService.update(player);  // Refresh nametag
+    }
+
+    public Rank getRank(Player player) {
+        return playerRanks.getOrDefault(player.getUniqueId(), Rank.DEFAULT);
+    }
+
+    // ================ NameTag Adapter ================
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        Rank rank = getRank(target);
+
+        return NameTag.builder()
+                .prefix(rank.getPrefix())
+                .color(rank.getNameColor())
+                .build();
+    }
+
+    @Override
+    public int priority() {
+        return 100;
+    }
+
+    // ================ Events ================
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        // Load rank from database
+        Rank rank = loadRankFromDatabase(player.getUniqueId());
+        playerRanks.put(player.getUniqueId(), rank);
+
+        // The nametag will be set automatically
+    }
+
+    private Rank loadRankFromDatabase(UUID uuid) {
+        // Implementation to load from database
+        return Rank.DEFAULT;
+    }
+}
+```
+
+---
+
+## Complete Example: Team-Based Coloring
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class TeamNameTagSystem implements NameTagAdapter, Listener {
+
+    private final NameTagService nameTagService;
+    private final Map<UUID, String> playerTeams = new HashMap<>();
+    private final Map<String, TeamData> teams = new HashMap<>();
+
+    public TeamNameTagSystem(NameTagService nameTagService) {
+        this.nameTagService = nameTagService;
+
+        // Initialize teams
+        teams.put("red", new TeamData("Red", "&c", ChatColor.RED));
+        teams.put("blue", new TeamData("Blue", "&9", ChatColor.BLUE));
+        teams.put("green", new TeamData("Green", "&a", ChatColor.GREEN));
+        teams.put("yellow", new TeamData("Yellow", "&e", ChatColor.YELLOW));
+    }
+
+    // ================ Team Data ================
+
+    record TeamData(String name, String colorCode, ChatColor chatColor) {}
+
+    // ================ Team Management ================
+
+    public void setTeam(Player player, String teamId) {
+        playerTeams.put(player.getUniqueId(), teamId);
+        nameTagService.update(player);
+    }
+
+    public String getTeam(Player player) {
+        return playerTeams.get(player.getUniqueId());
+    }
+
+    public void removeFromTeam(Player player) {
+        playerTeams.remove(player.getUniqueId());
+        nameTagService.update(player);
+    }
+
+    // ================ NameTag Adapter ================
+
+    @Override
+    public NameTag fetch(Player target, Player viewer) {
+        String teamId = playerTeams.get(target.getUniqueId());
+        if (teamId == null) return null;
+
+        TeamData team = teams.get(teamId);
+        if (team == null) return null;
+
+        String viewerTeam = playerTeams.get(viewer.getUniqueId());
+
+        // Same team = show team name
+        if (teamId.equals(viewerTeam)) {
+            return NameTag.builder()
+                    .prefix(team.colorCode() + "[" + team.name() + "] ")
+                    .color(team.chatColor())
+                    .build();
+        }
+
+        // Different team = just show color
+        return NameTag.builder()
+                .color(team.chatColor())
+                .build();
+    }
+
+    @Override
+    public int priority() {
+        return 50;
+    }
+
+    // ================ Events ================
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        playerTeams.remove(event.getPlayer().getUniqueId());
+    }
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use appropriate priorities** - Higher priorities for more important tags (rank > guild > status)
+
+2. **Return null to skip** - If your adapter doesn't apply, return `null` instead of an empty tag
+
+3. **Update efficiently** - Only call `update()` when data actually changes
+
+4. **Handle offline players** - Check if players are online before updating
+
+5. **Test character limits** - Ensure prefixes/suffixes fit within version limits
+
+6. **Cache expensive lookups** - Don't query databases in `fetch()` method
+
+:::tip Performance
+
+The `fetch()` method is called for every player pair. Keep it fast by caching rank/team data and avoiding expensive operations.
+
+:::
+
+:::warning Scoreboard Conflicts
+
+Nametags use Minecraft's scoreboard teams internally. If you have other plugins using scoreboard teams, they may conflict. Use Fairy's nametag system exclusively for best results.
+
+:::

@@ -1,0 +1,595 @@
+---
+sidebar_position: 1
+description: Create countdown timers and cooldowns with event-driven lifecycle.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Timer
+
+Fairy's timer module provides a powerful system for creating countdowns, cooldowns, and time-based events. It offers both player-specific timers and global server timers with an event-driven lifecycle.
+
+---
+
+## Overview
+
+The timer system offers:
+
+- **Player timers** - Timers bound to specific players
+- **Server timers** - Global timers for server-wide events
+- **Event-driven lifecycle** - Events for start, tick, pause, resume, and end
+- **Pause/Resume support** - Control timer execution
+- **Tick callbacks** - Execute code at specific intervals
+- **Time formatting** - Built-in time display formatting
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:bukkit-timer")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:bukkit-timer'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Create a Simple Timer
+
+```java
+import io.fairyproject.bukkit.timer.PlayerTimer;
+import io.fairyproject.bukkit.timer.TimerService;
+import io.fairyproject.container.InjectableComponent;
+import org.bukkit.entity.Player;
+
+@InjectableComponent
+public class CombatTimerService {
+
+    private final TimerService timerService;
+
+    public CombatTimerService(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public void startCombatTimer(Player player) {
+        PlayerTimer timer = timerService.createPlayerTimer("combat", player, 15000)  // 15 seconds
+                .onStart(t -> player.sendMessage("&cYou are now in combat!"))
+                .onTick(t -> {
+                    // Called every tick (configurable)
+                    player.sendActionBar("&cCombat: " + t.getFormattedTimeRemaining());
+                })
+                .onEnd(t -> player.sendMessage("&aYou are no longer in combat."))
+                .start();
+    }
+}
+```
+
+---
+
+## Timer Types
+
+### PlayerTimer
+
+Timers bound to specific players:
+
+```java
+PlayerTimer timer = timerService.createPlayerTimer("ability_cooldown", player, 5000)
+        .onStart(t -> player.sendMessage("Ability on cooldown..."))
+        .onEnd(t -> player.sendMessage("Ability ready!"))
+        .start();
+```
+
+### ServerTimer
+
+Global timers for server-wide events:
+
+```java
+import io.fairyproject.bukkit.timer.ServerTimer;
+
+ServerTimer timer = timerService.createServerTimer("world_event", 60000)  // 1 minute
+        .onStart(t -> Bukkit.broadcastMessage("&6World event starting in 1 minute!"))
+        .onTick(t -> {
+            if (t.getTimeRemaining() % 10000 == 0) {  // Every 10 seconds
+                Bukkit.broadcastMessage("&eEvent in " + t.getTimeRemaining() / 1000 + " seconds!");
+            }
+        })
+        .onEnd(t -> startWorldEvent())
+        .start();
+```
+
+---
+
+## Timer Lifecycle Events
+
+### Available Events
+
+| Event | Description |
+|-------|-------------|
+| `onStart` | Called when timer starts |
+| `onTick` | Called on each timer tick |
+| `onPause` | Called when timer is paused |
+| `onResume` | Called when timer is resumed |
+| `onEnd` | Called when timer completes |
+| `onCancel` | Called when timer is cancelled |
+
+### Event Handlers
+
+```java
+PlayerTimer timer = timerService.createPlayerTimer("example", player, 30000)
+        .onStart(t -> {
+            System.out.println("Timer started!");
+        })
+        .onTick(t -> {
+            long remaining = t.getTimeRemaining();
+            System.out.println("Time remaining: " + remaining + "ms");
+        })
+        .onPause(t -> {
+            System.out.println("Timer paused at " + t.getTimeRemaining() + "ms");
+        })
+        .onResume(t -> {
+            System.out.println("Timer resumed with " + t.getTimeRemaining() + "ms left");
+        })
+        .onEnd(t -> {
+            System.out.println("Timer completed!");
+        })
+        .onCancel(t -> {
+            System.out.println("Timer was cancelled");
+        })
+        .start();
+```
+
+---
+
+## Timer Control
+
+### Start, Pause, Resume, Cancel
+
+```java
+@InjectableComponent
+public class TimerController {
+
+    private final TimerService timerService;
+
+    public TimerController(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public void controlTimer(Player player) {
+        // Create timer (doesn't start automatically)
+        PlayerTimer timer = timerService.createPlayerTimer("controlled", player, 60000);
+
+        // Start the timer
+        timer.start();
+
+        // Pause the timer
+        timer.pause();
+
+        // Resume the timer
+        timer.resume();
+
+        // Cancel the timer (triggers onCancel)
+        timer.cancel();
+    }
+}
+```
+
+### Check Timer State
+
+```java
+public void checkState(PlayerTimer timer) {
+    boolean running = timer.isRunning();
+    boolean paused = timer.isPaused();
+    boolean completed = timer.isCompleted();
+    boolean cancelled = timer.isCancelled();
+
+    long remaining = timer.getTimeRemaining();  // Milliseconds remaining
+    long elapsed = timer.getElapsed();  // Milliseconds elapsed
+    long duration = timer.getDuration();  // Total duration in ms
+}
+```
+
+---
+
+## Tick Configuration
+
+### Tick Interval
+
+Control how often `onTick` is called:
+
+```java
+// Tick every 1 second (1000ms) instead of every game tick
+PlayerTimer timer = timerService.createPlayerTimer("slow_tick", player, 60000)
+        .tickInterval(1000)  // 1 second
+        .onTick(t -> {
+            // Called once per second
+            player.sendMessage("Seconds remaining: " + t.getTimeRemaining() / 1000);
+        })
+        .start();
+```
+
+### Conditional Tick Actions
+
+```java
+PlayerTimer timer = timerService.createPlayerTimer("announcer", player, 60000)
+        .tickInterval(1000)
+        .onTick(t -> {
+            long seconds = t.getTimeRemaining() / 1000;
+
+            // Announce at specific times
+            if (seconds == 30 || seconds == 10 || seconds <= 5) {
+                player.sendMessage("&e" + seconds + " seconds remaining!");
+            }
+        })
+        .start();
+```
+
+---
+
+## Time Formatting
+
+### Built-in Formatting
+
+```java
+PlayerTimer timer = timerService.createPlayerTimer("formatted", player, 125000);  // 2m 5s
+
+// Get formatted time strings
+String formatted = timer.getFormattedTimeRemaining();  // "02:05"
+String verbose = timer.getVerboseTimeRemaining();  // "2 minutes, 5 seconds"
+```
+
+### Custom Formatting
+
+```java
+public String formatTime(long millis) {
+    long seconds = millis / 1000;
+    long minutes = seconds / 60;
+    long hours = minutes / 60;
+
+    if (hours > 0) {
+        return String.format("%02d:%02d:%02d", hours, minutes % 60, seconds % 60);
+    } else if (minutes > 0) {
+        return String.format("%02d:%02d", minutes, seconds % 60);
+    } else {
+        return String.format("%d seconds", seconds);
+    }
+}
+```
+
+---
+
+## Timer Management
+
+### Get Existing Timers
+
+```java
+@InjectableComponent
+public class TimerManager {
+
+    private final TimerService timerService;
+
+    public TimerManager(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public void manageTimers(Player player) {
+        // Get a specific timer by ID
+        PlayerTimer combatTimer = timerService.getPlayerTimer("combat", player);
+
+        if (combatTimer != null && combatTimer.isRunning()) {
+            player.sendMessage("Combat timer active: " + combatTimer.getFormattedTimeRemaining());
+        }
+
+        // Get all timers for a player
+        List<PlayerTimer> playerTimers = timerService.getTimers(player);
+
+        // Get all server timers
+        List<ServerTimer> serverTimers = timerService.getServerTimers();
+    }
+
+    public boolean hasActiveTimer(Player player, String timerId) {
+        PlayerTimer timer = timerService.getPlayerTimer(timerId, player);
+        return timer != null && timer.isRunning();
+    }
+}
+```
+
+### Cancel All Timers
+
+```java
+public void cancelAllTimers(Player player) {
+    List<PlayerTimer> timers = timerService.getTimers(player);
+    for (PlayerTimer timer : timers) {
+        timer.cancel();
+    }
+}
+```
+
+---
+
+## Practical Examples
+
+### Combat Logger
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class CombatLoggerService implements Listener {
+
+    private final TimerService timerService;
+    private static final String COMBAT_TIMER_ID = "combat";
+    private static final long COMBAT_DURATION = 15000;  // 15 seconds
+
+    public CombatLoggerService(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onDamage(PlayerDamageByPlayerEvent event) {
+        // Tag both players
+        tagPlayer(event.getPlayer());
+        tagPlayer(event.getDamager());
+    }
+
+    private void tagPlayer(Player player) {
+        // Cancel existing timer if present
+        PlayerTimer existing = timerService.getPlayerTimer(COMBAT_TIMER_ID, player);
+        if (existing != null) {
+            existing.cancel();
+        }
+
+        // Start new combat timer
+        timerService.createPlayerTimer(COMBAT_TIMER_ID, player, COMBAT_DURATION)
+                .onStart(t -> {
+                    player.sendMessage("&cYou are now in combat! Do not log out!");
+                })
+                .tickInterval(1000)
+                .onTick(t -> {
+                    player.sendActionBar("&c⚔ Combat: " + t.getFormattedTimeRemaining());
+                })
+                .onEnd(t -> {
+                    player.sendMessage("&aYou are no longer in combat.");
+                })
+                .start();
+    }
+
+    public boolean isInCombat(Player player) {
+        PlayerTimer timer = timerService.getPlayerTimer(COMBAT_TIMER_ID, player);
+        return timer != null && timer.isRunning();
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+
+        if (isInCombat(player)) {
+            // Kill the player for combat logging
+            player.setHealth(0);
+            Bukkit.broadcastMessage("&c" + player.getName() + " combat logged!");
+        }
+    }
+}
+```
+
+### Ability Cooldown System
+
+```java
+@InjectableComponent
+public class AbilityCooldownService {
+
+    private final TimerService timerService;
+
+    public AbilityCooldownService(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public boolean useAbility(Player player, String abilityId, long cooldownMs, Runnable ability) {
+        String timerId = "ability_" + abilityId;
+
+        // Check if on cooldown
+        PlayerTimer existing = timerService.getPlayerTimer(timerId, player);
+        if (existing != null && existing.isRunning()) {
+            player.sendMessage("&cAbility on cooldown: " + existing.getFormattedTimeRemaining());
+            return false;
+        }
+
+        // Execute ability
+        ability.run();
+
+        // Start cooldown timer
+        timerService.createPlayerTimer(timerId, player, cooldownMs)
+                .onEnd(t -> player.sendMessage("&a" + abilityId + " is ready!"))
+                .start();
+
+        return true;
+    }
+
+    public long getCooldownRemaining(Player player, String abilityId) {
+        String timerId = "ability_" + abilityId;
+        PlayerTimer timer = timerService.getPlayerTimer(timerId, player);
+
+        if (timer == null || !timer.isRunning()) {
+            return 0;
+        }
+
+        return timer.getTimeRemaining();
+    }
+}
+
+// Usage
+public void onFireballCast(Player player) {
+    abilityCooldownService.useAbility(player, "fireball", 10000, () -> {
+        // Cast fireball
+        player.sendMessage("&6Fireball launched!");
+        launchFireball(player);
+    });
+}
+```
+
+### Game Countdown Timer
+
+```java
+@InjectableComponent
+public class GameStartTimer {
+
+    private final TimerService timerService;
+    private ServerTimer countdownTimer;
+
+    public GameStartTimer(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public void startCountdown(Runnable onGameStart) {
+        // Cancel existing countdown if any
+        if (countdownTimer != null && countdownTimer.isRunning()) {
+            countdownTimer.cancel();
+        }
+
+        countdownTimer = timerService.createServerTimer("game_countdown", 30000)  // 30 seconds
+                .tickInterval(1000)
+                .onStart(t -> {
+                    Bukkit.broadcastMessage("&6&l▶ Game starting in 30 seconds!");
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1, 1);
+                    }
+                })
+                .onTick(t -> {
+                    long seconds = t.getTimeRemaining() / 1000;
+
+                    // Announce at specific intervals
+                    if (seconds == 20 || seconds == 10 || seconds <= 5) {
+                        String color = seconds <= 5 ? "&c" : "&e";
+                        Bukkit.broadcastMessage(color + "Game starting in " + seconds + " seconds!");
+
+                        // Play countdown sound
+                        Sound sound = seconds <= 3 ? Sound.BLOCK_NOTE_BLOCK_BASS : Sound.BLOCK_NOTE_BLOCK_HAT;
+                        for (Player player : Bukkit.getOnlinePlayers()) {
+                            player.playSound(player.getLocation(), sound, 1, 1);
+                        }
+                    }
+
+                    // Update boss bar or action bar
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        player.sendActionBar("&eStarting in: &f" + t.getFormattedTimeRemaining());
+                    }
+                })
+                .onEnd(t -> {
+                    Bukkit.broadcastMessage("&a&l▶ Game started!");
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1, 1);
+                    }
+                    onGameStart.run();
+                })
+                .onCancel(t -> {
+                    Bukkit.broadcastMessage("&c&l✖ Countdown cancelled!");
+                })
+                .start();
+    }
+
+    public void cancelCountdown() {
+        if (countdownTimer != null && countdownTimer.isRunning()) {
+            countdownTimer.cancel();
+        }
+    }
+
+    public boolean isCountingDown() {
+        return countdownTimer != null && countdownTimer.isRunning();
+    }
+}
+```
+
+### Teleport Warmup
+
+```java
+@InjectableComponent
+public class TeleportWarmupService {
+
+    private final TimerService timerService;
+    private static final String TELEPORT_TIMER_ID = "teleport_warmup";
+
+    public TeleportWarmupService(TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public void teleportWithWarmup(Player player, Location destination, long warmupMs) {
+        // Cancel any existing teleport
+        cancelTeleport(player);
+
+        final Location startLocation = player.getLocation().clone();
+
+        timerService.createPlayerTimer(TELEPORT_TIMER_ID, player, warmupMs)
+                .onStart(t -> {
+                    player.sendMessage("&eTeleporting in " + (warmupMs / 1000) + " seconds...");
+                    player.sendMessage("&7Don't move!");
+                })
+                .tickInterval(100)  // Check every 100ms
+                .onTick(t -> {
+                    // Cancel if player moved
+                    if (hasMoved(startLocation, player.getLocation())) {
+                        t.cancel();
+                        player.sendMessage("&cTeleport cancelled - you moved!");
+                        return;
+                    }
+
+                    // Show progress
+                    player.sendActionBar("&eTeleporting: " + t.getFormattedTimeRemaining());
+                })
+                .onEnd(t -> {
+                    player.teleport(destination);
+                    player.sendMessage("&aTeleported!");
+                    player.playSound(destination, Sound.ENTITY_ENDERMAN_TELEPORT, 1, 1);
+                })
+                .start();
+    }
+
+    public void cancelTeleport(Player player) {
+        PlayerTimer timer = timerService.getPlayerTimer(TELEPORT_TIMER_ID, player);
+        if (timer != null && timer.isRunning()) {
+            timer.cancel();
+        }
+    }
+
+    private boolean hasMoved(Location from, Location to) {
+        return from.getBlockX() != to.getBlockX() ||
+               from.getBlockY() != to.getBlockY() ||
+               from.getBlockZ() != to.getBlockZ();
+    }
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use meaningful timer IDs** - Clear IDs like `"combat"` or `"ability_fireball"` make debugging easier
+
+2. **Cancel existing timers** - Before starting a new timer, cancel any existing one with the same ID
+
+3. **Clean up on player quit** - Ensure timers are cancelled when players leave
+
+4. **Use appropriate tick intervals** - Don't tick every game tick unless necessary
+
+5. **Handle timer state** - Always check if timer exists and is running before accessing it
+
+:::tip Performance
+
+Timer tick callbacks run on the main thread. Keep tick handlers fast to avoid lag. For heavy operations, use async tasks.
+
+:::
+
+:::warning Thread Safety
+
+Timer operations must be called from the main thread. Use `Bukkit.getScheduler().runTask()` if calling from async code.
+
+:::

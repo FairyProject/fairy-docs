@@ -1,0 +1,8 @@
+{
+  "label": "Timer",
+  "position": 12,
+  "link": {
+    "type": "generated-index",
+    "description": "Create and manage countdowns and timers for players."
+  }
+}

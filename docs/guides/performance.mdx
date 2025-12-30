@@ -1,0 +1,603 @@
+---
+sidebar_position: 1
+description: Best practices for optimizing Fairy plugin performance.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Performance Optimization Guide
+
+This guide covers best practices for writing high-performance plugins with Fairy Framework. Following these guidelines will help you create plugins that run smoothly even on busy servers.
+
+---
+
+## Overview
+
+Performance optimization in Minecraft plugins focuses on:
+
+1. **Main thread protection** - Keep the main thread free for game ticks
+2. **Memory management** - Avoid leaks and excessive allocations
+3. **Efficient data access** - Cache expensive operations
+4. **Event handling** - Process events efficiently
+5. **Database operations** - Use async for I/O operations
+
+---
+
+## Main Thread Protection
+
+The Minecraft server runs on a single main thread. Blocking this thread causes lag (TPS drops).
+
+### Use Async for I/O Operations
+
+```java
+// ❌ BAD: Blocking main thread
+@EventHandler
+public void onJoin(PlayerJoinEvent event) {
+    PlayerData data = database.loadPlayer(event.getPlayer().getUniqueId());  // BLOCKS!
+    applyData(event.getPlayer(), data);
+}
+
+// ✅ GOOD: Async loading
+@InjectableComponent
+@RegisterAsListener
+public class PlayerDataLoader implements Listener {
+
+    private final MCSchedulers schedulers;
+    private final Database database;
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        schedulers.getAsyncScheduler().schedule(() -> {
+            // Load data async
+            PlayerData data = database.loadPlayer(player.getUniqueId());
+
+            // Apply on main thread
+            schedulers.getGlobalScheduler().schedule(() -> {
+                if (player.isOnline()) {
+                    applyData(player, data);
+                }
+            });
+        });
+    }
+}
+```
+
+### Use MCSchedulers Correctly
+
+```java
+@InjectableComponent
+public class SchedulerExample {
+
+    private final MCSchedulers schedulers;
+
+    public SchedulerExample(MCSchedulers schedulers) {
+        this.schedulers = schedulers;
+    }
+
+    // Heavy computation - run async
+    public void calculateLeaderboard() {
+        schedulers.getAsyncScheduler().schedule(() -> {
+            List<LeaderboardEntry> entries = computeLeaderboard();  // Heavy operation
+
+            // Update cache on main thread
+            schedulers.getGlobalScheduler().schedule(() -> {
+                updateLeaderboardCache(entries);
+            });
+        });
+    }
+
+    // Quick operation - can run on main thread
+    public void sendMessage(Player player, String message) {
+        // No need for async, this is fast
+        player.sendMessage(message);
+    }
+}
+```
+
+---
+
+## Memory Management
+
+### Clean Up Player Data
+
+Always remove player data when they disconnect:
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class PlayerCache implements Listener {
+
+    private final Map<UUID, PlayerData> cache = new ConcurrentHashMap<>();
+
+    public PlayerData getData(Player player) {
+        return cache.computeIfAbsent(player.getUniqueId(), this::loadData);
+    }
+
+    // ❌ BAD: Never cleaning up
+    // Memory leak: data stays forever!
+
+    // ✅ GOOD: Clean up on quit
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        cache.remove(event.getPlayer().getUniqueId());
+    }
+
+    private PlayerData loadData(UUID uuid) {
+        return database.load(uuid);
+    }
+}
+```
+
+### Use Weak References for Entity Caches
+
+```java
+// ❌ BAD: Strong reference to entities
+private final Map<UUID, Entity> trackedEntities = new HashMap<>();  // Prevents GC!
+
+// ✅ GOOD: Weak references allow GC
+private final Map<UUID, WeakReference<Entity>> trackedEntities = new WeakHashMap<>();
+
+public Entity getTracked(UUID entityId) {
+    WeakReference<Entity> ref = trackedEntities.get(entityId);
+    return ref != null ? ref.get() : null;
+}
+```
+
+### Avoid Excessive Object Creation
+
+```java
+// ❌ BAD: Creating objects in hot paths
+@EventHandler
+public void onMove(PlayerMoveEvent event) {
+    Location loc = new Location(world, x, y, z);  // New object every move!
+    checkRegion(loc);
+}
+
+// ✅ GOOD: Reuse objects where possible
+private final Location tempLocation = new Location(null, 0, 0, 0);
+
+@EventHandler
+public void onMove(PlayerMoveEvent event) {
+    Location to = event.getTo();
+    tempLocation.setWorld(to.getWorld());
+    tempLocation.setX(to.getX());
+    tempLocation.setY(to.getY());
+    tempLocation.setZ(to.getZ());
+    checkRegion(tempLocation);
+}
+```
+
+---
+
+## Efficient Data Access
+
+### Cache Configuration Values
+
+```java
+// ❌ BAD: Reading config every time
+public void onDamage(Player player, double damage) {
+    double multiplier = config.getDouble("damage-multiplier");  // File read?
+    player.damage(damage * multiplier);
+}
+
+// ✅ GOOD: Cache config values
+@InjectableComponent
+public class DamageService {
+
+    private double damageMultiplier;
+
+    @PostConstruct
+    public void loadConfig() {
+        this.damageMultiplier = config.getDouble("damage-multiplier");
+    }
+
+    public void onDamage(Player player, double damage) {
+        player.damage(damage * damageMultiplier);  // Fast field access
+    }
+
+    public void reloadConfig() {
+        loadConfig();  // Call when config reloads
+    }
+}
+```
+
+### Use Efficient Data Structures
+
+```java
+// For frequent lookups by UUID
+Map<UUID, PlayerData> playerData = new HashMap<>();  // O(1) lookup
+
+// For checking membership
+Set<UUID> vipPlayers = new HashSet<>();  // O(1) contains check
+
+// For maintaining insertion order
+Map<UUID, Long> loginTimes = new LinkedHashMap<>();
+
+// For sorted data
+NavigableMap<Integer, List<Player>> playersByLevel = new TreeMap<>();
+```
+
+### Batch Database Operations
+
+```java
+// ❌ BAD: Individual queries
+public void saveAllPlayers() {
+    for (Player player : Bukkit.getOnlinePlayers()) {
+        database.savePlayer(player);  // N queries!
+    }
+}
+
+// ✅ GOOD: Batch operations
+public void saveAllPlayers() {
+    List<PlayerData> dataList = new ArrayList<>();
+    for (Player player : Bukkit.getOnlinePlayers()) {
+        dataList.add(getPlayerData(player));
+    }
+    database.saveBatch(dataList);  // Single batch query
+}
+```
+
+---
+
+## Event Handling Optimization
+
+### Filter Early in Event Handlers
+
+```java
+// ❌ BAD: Processing everything then filtering
+@EventHandler
+public void onMove(PlayerMoveEvent event) {
+    Location from = event.getFrom();
+    Location to = event.getTo();
+
+    // Expensive region check
+    Region region = getRegion(to);
+
+    // Then filtering
+    if (from.getBlockX() == to.getBlockX() &&
+        from.getBlockY() == to.getBlockY() &&
+        from.getBlockZ() == to.getBlockZ()) {
+        return;  // Too late, already did expensive work!
+    }
+}
+
+// ✅ GOOD: Filter first
+@EventHandler
+public void onMove(PlayerMoveEvent event) {
+    // Quick filter first
+    if (event.getTo() == null) return;
+
+    Location from = event.getFrom();
+    Location to = event.getTo();
+
+    // Only head rotation, no actual movement
+    if (from.getBlockX() == to.getBlockX() &&
+        from.getBlockY() == to.getBlockY() &&
+        from.getBlockZ() == to.getBlockZ()) {
+        return;
+    }
+
+    // Now do expensive work
+    Region region = getRegion(to);
+}
+```
+
+### Use Event Priorities Wisely
+
+```java
+// For monitoring only (don't modify)
+@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+public void logDamage(EntityDamageEvent event) {
+    // Just logging, use MONITOR
+}
+
+// For modifying behavior
+@EventHandler(priority = EventPriority.NORMAL)
+public void modifyDamage(EntityDamageEvent event) {
+    // Modify damage here
+}
+
+// For final processing
+@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+public void finalCheck(EntityDamageEvent event) {
+    // Last chance to modify
+}
+```
+
+### Use Fairy's Player Events
+
+```java
+// ❌ Less efficient: Manual filtering
+@EventHandler
+public void onEntityDamage(EntityDamageByEntityEvent event) {
+    if (!(event.getEntity() instanceof Player victim)) return;
+    if (!(event.getDamager() instanceof Player damager)) return;
+    // Handle PvP
+}
+
+// ✅ More efficient: Pre-filtered events
+@EventHandler
+public void onPvP(PlayerDamageByPlayerEvent event) {
+    Player victim = event.getPlayer();
+    Player damager = event.getDamager();
+    // Handle PvP - already filtered!
+}
+```
+
+---
+
+## GUI Optimization
+
+### Efficient Item Updates
+
+```java
+// ❌ BAD: Rebuilding entire GUI
+public void updatePlayerGold(Player player) {
+    openShopGui(player);  // Rebuilds everything!
+}
+
+// ✅ GOOD: Update only changed items
+public void updatePlayerGold(Player player, Gui gui) {
+    int gold = getGold(player);
+    gui.updateSlot(0, createGoldItem(gold));  // Updates single slot
+}
+```
+
+### Cache Static Items
+
+```java
+@InjectableComponent
+public class ShopGui {
+
+    // Cache static items
+    private final ItemStack borderItem;
+    private final ItemStack closeButton;
+
+    @PostConstruct
+    public void init() {
+        this.borderItem = new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE)
+                .name(" ")
+                .build();
+        this.closeButton = new ItemBuilder(Material.BARRIER)
+                .name("&cClose")
+                .build();
+    }
+
+    public void open(Player player) {
+        Gui gui = guiFactory.create("Shop", 6, player);
+
+        // Use cached items
+        for (int i = 0; i < 9; i++) {
+            gui.slot(i, GuiSlot.of(borderItem));  // Reuses same item
+        }
+
+        gui.slot(49, GuiSlot.of(closeButton, e -> e.getWhoClicked().closeInventory()));
+
+        gui.open(player);
+    }
+}
+```
+
+---
+
+## Database Best Practices
+
+### Use Connection Pooling
+
+```java
+// Connection pool configuration
+HikariConfig config = new HikariConfig();
+config.setMaximumPoolSize(10);
+config.setMinimumIdle(2);
+config.setConnectionTimeout(30000);
+config.setIdleTimeout(600000);
+config.setMaxLifetime(1800000);
+```
+
+### Async Database Operations
+
+```java
+@InjectableComponent
+public class AsyncPlayerRepository {
+
+    private final MCSchedulers schedulers;
+    private final Database database;
+
+    public CompletableFuture<PlayerData> loadAsync(UUID playerId) {
+        return CompletableFuture.supplyAsync(() -> {
+            return database.load(playerId);
+        });
+    }
+
+    public CompletableFuture<Void> saveAsync(PlayerData data) {
+        return CompletableFuture.runAsync(() -> {
+            database.save(data);
+        });
+    }
+
+    // Usage
+    public void onJoin(Player player) {
+        loadAsync(player.getUniqueId()).thenAccept(data -> {
+            schedulers.getGlobalScheduler().schedule(() -> {
+                if (player.isOnline()) {
+                    applyData(player, data);
+                }
+            });
+        });
+    }
+}
+```
+
+### Implement Caching Strategy
+
+```java
+@InjectableComponent
+public class CachedPlayerRepository {
+
+    private final Cache<UUID, PlayerData> cache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .build();
+
+    private final Database database;
+
+    public PlayerData get(UUID playerId) {
+        return cache.get(playerId, this::loadFromDatabase);
+    }
+
+    public void invalidate(UUID playerId) {
+        cache.invalidate(playerId);
+    }
+
+    public void save(PlayerData data) {
+        database.save(data);
+        cache.put(data.getPlayerId(), data);
+    }
+
+    private PlayerData loadFromDatabase(UUID playerId) {
+        return database.load(playerId);
+    }
+}
+```
+
+---
+
+## Scheduler Optimization
+
+### Avoid Unnecessary Repeated Tasks
+
+```java
+// ❌ BAD: Task running when not needed
+@PostConstruct
+public void init() {
+    schedulers.getGlobalScheduler().scheduleRepeating(() -> {
+        updateAllPlayers();  // Runs even with 0 players!
+    }, 0, 20);
+}
+
+// ✅ GOOD: Conditional execution
+@PostConstruct
+public void init() {
+    schedulers.getGlobalScheduler().scheduleRepeating(() -> {
+        if (!Bukkit.getOnlinePlayers().isEmpty()) {
+            updateAllPlayers();
+        }
+    }, 0, 20);
+}
+```
+
+### Use Appropriate Intervals
+
+```java
+// Scoreboards, tablists, nametags: 20 ticks (1 second) is usually enough
+schedulers.getGlobalScheduler().scheduleRepeating(this::updateScoreboard, 0, 20);
+
+// Position checks: 5-10 ticks for reasonable accuracy
+schedulers.getGlobalScheduler().scheduleRepeating(this::checkRegions, 0, 5);
+
+// Animations: 1-2 ticks for smooth animation
+schedulers.getGlobalScheduler().scheduleRepeating(this::animateHologram, 0, 2);
+
+// Save tasks: 6000+ ticks (5+ minutes) for auto-save
+schedulers.getAsyncScheduler().scheduleRepeating(this::autoSave, 6000, 6000);
+```
+
+---
+
+## Profiling and Debugging
+
+### Use Spark Profiler
+
+```shell
+# Install Spark plugin
+# Then use in-game:
+/spark profiler start
+# Do problematic actions
+/spark profiler stop
+```
+
+### Add Timing Points
+
+```java
+@InjectableComponent
+public class TimedOperation {
+
+    public void expensiveOperation() {
+        long start = System.nanoTime();
+
+        // Operation here
+        doExpensiveWork();
+
+        long elapsed = System.nanoTime() - start;
+        if (elapsed > 1_000_000) {  // > 1ms
+            System.out.println("Warning: Operation took " + (elapsed / 1_000_000.0) + "ms");
+        }
+    }
+}
+```
+
+### Monitor TPS
+
+```java
+@InjectableComponent
+public class TPSMonitor {
+
+    public double getTPS() {
+        // For Paper servers
+        return Bukkit.getTPS()[0];
+    }
+
+    public void warnIfLow() {
+        double tps = getTPS();
+        if (tps < 18.0) {
+            System.out.println("Warning: TPS is low: " + tps);
+        }
+    }
+}
+```
+
+---
+
+## Performance Checklist
+
+### Before Release
+
+- [ ] All database operations are async
+- [ ] Player data is cleaned up on quit
+- [ ] No memory leaks in caches
+- [ ] Events filter early
+- [ ] Expensive operations are cached
+- [ ] Scheduled tasks have appropriate intervals
+- [ ] GUIs cache static items
+- [ ] No blocking operations on main thread
+
+### Common Red Flags
+
+| Issue | Impact | Solution |
+|-------|--------|----------|
+| Sync database calls | High lag | Use async |
+| No player cleanup | Memory leak | Clean on quit |
+| Every-tick tasks | CPU drain | Increase interval |
+| Recreating objects | GC pressure | Cache/reuse |
+| Unfiltered events | CPU waste | Filter early |
+| Large NBT data | Network lag | Store minimal data |
+
+---
+
+## Summary
+
+1. **Keep main thread fast** - Move I/O to async
+2. **Clean up player data** - Prevent memory leaks
+3. **Cache expensive data** - Don't recalculate
+4. **Filter events early** - Avoid unnecessary work
+5. **Use appropriate intervals** - Balance accuracy vs. CPU
+6. **Profile regularly** - Find bottlenecks early
+
+:::tip Monitor in Production
+
+Use monitoring tools like Spark in production to identify real-world performance issues that may not appear in development.
+
+:::

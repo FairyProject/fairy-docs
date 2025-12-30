@@ -1,0 +1,576 @@
+---
+sidebar_position: 1
+description: Create floating text displays (holograms) in the Minecraft world.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Hologram
+
+Fairy's hologram module provides a simple API to create floating text displays in the Minecraft world. It automatically handles version differences, using ArmorStands for older versions (1.8-1.18) and TextDisplay entities for newer versions (1.19+).
+
+---
+
+## Overview
+
+The hologram system offers:
+
+- **Version-adaptive rendering** - Automatically uses the best entity type for each Minecraft version
+- **Multi-line support** - Display multiple lines of text
+- **Dynamic updates** - Update text content without recreating the hologram
+- **Player-specific visibility** - Show holograms only to certain players
+- **Packet-based** - Uses packets instead of real entities for better performance
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:mc-hologram")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:mc-hologram'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Create a Simple Hologram
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.hologram.Hologram;
+import io.fairyproject.mc.hologram.HologramFactory;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
+
+@InjectableComponent
+public class HologramService {
+
+    private final HologramFactory hologramFactory;
+
+    public HologramService(HologramFactory hologramFactory) {
+        this.hologramFactory = hologramFactory;
+    }
+
+    public Hologram createWelcomeHologram(Location location) {
+        return hologramFactory.create(location)
+                .addLine("&6Welcome to the Server!")
+                .addLine("&7Use /help for commands")
+                .addLine("&aEnjoy your stay!")
+                .build();
+    }
+}
+```
+
+---
+
+## Hologram Factory
+
+The `HologramFactory` is the entry point for creating holograms:
+
+```java
+@InjectableComponent
+public class HologramManager {
+
+    private final HologramFactory hologramFactory;
+    private final Map<String, Hologram> holograms = new HashMap<>();
+
+    public HologramManager(HologramFactory hologramFactory) {
+        this.hologramFactory = hologramFactory;
+    }
+
+    public void createHologram(String id, Location location, String... lines) {
+        Hologram.Builder builder = hologramFactory.create(location);
+
+        for (String line : lines) {
+            builder.addLine(line);
+        }
+
+        Hologram hologram = builder.build();
+        holograms.put(id, hologram);
+    }
+
+    public void removeHologram(String id) {
+        Hologram hologram = holograms.remove(id);
+        if (hologram != null) {
+            hologram.destroy();
+        }
+    }
+
+    public Hologram getHologram(String id) {
+        return holograms.get(id);
+    }
+}
+```
+
+---
+
+## Hologram Builder
+
+### Basic Options
+
+```java
+Hologram hologram = hologramFactory.create(location)
+        .addLine("&aFirst Line")
+        .addLine("&bSecond Line")
+        .addLine("&cThird Line")
+        .lineSpacing(0.25)     // Space between lines (default: 0.25 blocks)
+        .build();
+```
+
+### Dynamic Line Content
+
+```java
+Hologram hologram = hologramFactory.create(location)
+        .addLine(() -> "&ePlayers Online: &f" + Bukkit.getOnlinePlayers().size())
+        .addLine(() -> "&eServer TPS: &f" + String.format("%.1f", getServerTPS()))
+        .updateInterval(20)    // Update every 20 ticks (1 second)
+        .build();
+```
+
+### Player-Specific Visibility
+
+```java
+Hologram hologram = hologramFactory.create(location)
+        .addLine("&cSecret Information")
+        .addLine("&7Only VIPs can see this")
+        .viewers(player -> player.hasPermission("vip.access"))
+        .build();
+```
+
+---
+
+## Hologram Lines
+
+### HologramLine Interface
+
+Each line in a hologram is represented by a `HologramLine`:
+
+```java
+import io.fairyproject.mc.hologram.HologramLine;
+
+// Get lines from hologram
+List<HologramLine> lines = hologram.getLines();
+
+// Update a specific line
+HologramLine firstLine = lines.get(0);
+firstLine.setText("&aUpdated Text!");
+
+// Add new line dynamically
+hologram.addLine("&dNew Dynamic Line");
+
+// Remove a line
+hologram.removeLine(0);
+```
+
+### Line Types
+
+```java
+// Static text line
+builder.addLine("&6Static Text");
+
+// Dynamic text line (with supplier)
+builder.addLine(() -> "&eDynamic: " + System.currentTimeMillis());
+
+// Item line (display an item)
+builder.addItemLine(new ItemStack(Material.DIAMOND));
+
+// Empty line (for spacing)
+builder.addEmptyLine();
+```
+
+---
+
+## Visibility Control
+
+### Show/Hide to Players
+
+```java
+@InjectableComponent
+public class HologramVisibility {
+
+    private final Hologram hologram;
+
+    // Show to a specific player
+    public void show(Player player) {
+        hologram.show(player);
+    }
+
+    // Hide from a specific player
+    public void hide(Player player) {
+        hologram.hide(player);
+    }
+
+    // Show to all online players
+    public void showAll() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            hologram.show(player);
+        }
+    }
+
+    // Check if visible to player
+    public boolean isVisible(Player player) {
+        return hologram.isVisibleTo(player);
+    }
+}
+```
+
+### Viewer Predicate
+
+```java
+// Only show to players with permission
+Hologram adminHologram = hologramFactory.create(location)
+        .addLine("&cAdmin Panel")
+        .viewers(player -> player.hasPermission("admin.hologram"))
+        .build();
+
+// Only show to players in same world
+Hologram worldHologram = hologramFactory.create(location)
+        .addLine("&aWorld-specific hologram")
+        .viewers(player -> player.getWorld().equals(location.getWorld()))
+        .build();
+
+// Only show to players within range
+Hologram rangeHologram = hologramFactory.create(location)
+        .addLine("&bNearby only")
+        .viewers(player -> player.getLocation().distance(location) < 50)
+        .build();
+```
+
+---
+
+## Dynamic Updates
+
+### Automatic Refresh
+
+```java
+// Create a hologram that updates every second
+Hologram statsHologram = hologramFactory.create(location)
+        .addLine("&6=== Server Stats ===")
+        .addLine(() -> "&ePlayers: &f" + Bukkit.getOnlinePlayers().size())
+        .addLine(() -> "&eMemory: &f" + getMemoryUsage() + " MB")
+        .addLine(() -> "&eTPS: &f" + String.format("%.2f", getServerTPS()))
+        .updateInterval(20)  // 20 ticks = 1 second
+        .build();
+```
+
+### Manual Update
+
+```java
+@InjectableComponent
+public class LeaderboardHologram {
+
+    private final Hologram hologram;
+    private final LeaderboardService leaderboardService;
+
+    public void refresh() {
+        List<String> top10 = leaderboardService.getTop10();
+
+        // Clear and rebuild lines
+        hologram.clearLines();
+        hologram.addLine("&6=== Top 10 Players ===");
+
+        for (int i = 0; i < top10.size(); i++) {
+            hologram.addLine("&e#" + (i + 1) + " &f" + top10.get(i));
+        }
+
+        // Force update to all viewers
+        hologram.update();
+    }
+}
+```
+
+### Update Specific Line
+
+```java
+public void updateScore(int newScore) {
+    // Update only the score line (index 2)
+    hologram.getLine(2).setText("&eScore: &f" + newScore);
+}
+```
+
+---
+
+## Location Management
+
+### Move Hologram
+
+```java
+public void moveHologram(Hologram hologram, Location newLocation) {
+    hologram.setLocation(newLocation);
+}
+```
+
+### Teleport with Animation
+
+```java
+public void animateMove(Hologram hologram, Location target, int ticks) {
+    Location start = hologram.getLocation();
+    double deltaX = (target.getX() - start.getX()) / ticks;
+    double deltaY = (target.getY() - start.getY()) / ticks;
+    double deltaZ = (target.getZ() - start.getZ()) / ticks;
+
+    new BukkitRunnable() {
+        int remaining = ticks;
+
+        @Override
+        public void run() {
+            if (remaining <= 0) {
+                hologram.setLocation(target);
+                cancel();
+                return;
+            }
+
+            Location current = hologram.getLocation();
+            hologram.setLocation(current.add(deltaX, deltaY, deltaZ));
+            remaining--;
+        }
+    }.runTaskTimer(plugin, 0, 1);
+}
+```
+
+---
+
+## Lifecycle Management
+
+### Destroy Hologram
+
+```java
+public void cleanup() {
+    // Remove hologram and despawn for all viewers
+    hologram.destroy();
+}
+```
+
+### Plugin Disable Cleanup
+
+```java
+@InjectableComponent
+public class HologramCleanup {
+
+    private final List<Hologram> activeHolograms = new ArrayList<>();
+
+    public void register(Hologram hologram) {
+        activeHolograms.add(hologram);
+    }
+
+    @PreDestroy
+    public void onDisable() {
+        // Clean up all holograms when plugin disables
+        for (Hologram hologram : activeHolograms) {
+            hologram.destroy();
+        }
+        activeHolograms.clear();
+    }
+}
+```
+
+---
+
+## Complete Example: NPC Shop Hologram
+
+```java
+import io.fairyproject.bukkit.listener.RegisterAsListener;
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.hologram.Hologram;
+import io.fairyproject.mc.hologram.HologramFactory;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@InjectableComponent
+@RegisterAsListener
+public class ShopHologramService implements Listener {
+
+    private final HologramFactory hologramFactory;
+    private final Map<String, Hologram> shopHolograms = new HashMap<>();
+
+    public ShopHologramService(HologramFactory hologramFactory) {
+        this.hologramFactory = hologramFactory;
+    }
+
+    @PostConstruct
+    public void setup() {
+        // Create shop holograms at predefined locations
+        createShopHologram("weapons", new Location(Bukkit.getWorld("world"), 100, 65, 200));
+        createShopHologram("armor", new Location(Bukkit.getWorld("world"), 110, 65, 200));
+        createShopHologram("potions", new Location(Bukkit.getWorld("world"), 120, 65, 200));
+    }
+
+    private void createShopHologram(String shopId, Location location) {
+        Hologram hologram = hologramFactory.create(location)
+                .addLine("&6&l" + capitalize(shopId) + " Shop")
+                .addLine("&7Right-click to open")
+                .addLine(() -> "&eItems in stock: &f" + getStockCount(shopId))
+                .updateInterval(100)  // Update every 5 seconds
+                .build();
+
+        shopHolograms.put(shopId, hologram);
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        // Show all shop holograms to joining player
+        for (Hologram hologram : shopHolograms.values()) {
+            hologram.show(player);
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        // Hide holograms from leaving player (cleanup)
+        for (Hologram hologram : shopHolograms.values()) {
+            hologram.hide(player);
+        }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        for (Hologram hologram : shopHolograms.values()) {
+            hologram.destroy();
+        }
+        shopHolograms.clear();
+    }
+
+    private int getStockCount(String shopId) {
+        // Implementation to get stock count
+        return 0;
+    }
+
+    private String capitalize(String str) {
+        return str.substring(0, 1).toUpperCase() + str.substring(1);
+    }
+}
+```
+
+---
+
+## Complete Example: Player-Following Hologram
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class PlayerHologramService implements Listener {
+
+    private final HologramFactory hologramFactory;
+    private final Map<UUID, Hologram> playerHolograms = new ConcurrentHashMap<>();
+
+    public PlayerHologramService(HologramFactory hologramFactory) {
+        this.hologramFactory = hologramFactory;
+    }
+
+    public void createPlayerHologram(Player player) {
+        Location above = player.getLocation().add(0, 2.5, 0);
+
+        Hologram hologram = hologramFactory.create(above)
+                .addLine("&e" + player.getName())
+                .addLine(() -> "&c❤ " + (int) player.getHealth() + "/" + (int) player.getMaxHealth())
+                .addLine(() -> "&b✦ Level " + player.getLevel())
+                .updateInterval(10)
+                .viewers(viewer -> viewer.equals(player) || viewer.hasPermission("staff.see.info"))
+                .build();
+
+        playerHolograms.put(player.getUniqueId(), hologram);
+
+        // Start following the player
+        startFollowing(player, hologram);
+    }
+
+    private void startFollowing(Player player, Hologram hologram) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!player.isOnline() || !playerHolograms.containsKey(player.getUniqueId())) {
+                    cancel();
+                    return;
+                }
+
+                Location above = player.getLocation().add(0, 2.5, 0);
+                hologram.setLocation(above);
+            }
+        }.runTaskTimer(plugin, 0, 1);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Hologram hologram = playerHolograms.remove(event.getPlayer().getUniqueId());
+        if (hologram != null) {
+            hologram.destroy();
+        }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        for (Hologram hologram : playerHolograms.values()) {
+            hologram.destroy();
+        }
+        playerHolograms.clear();
+    }
+}
+```
+
+---
+
+## Version Compatibility
+
+The hologram module automatically handles version differences:
+
+| Minecraft Version | Entity Type | Features |
+|-------------------|-------------|----------|
+| 1.8 - 1.18 | ArmorStand | Invisible armor stand with custom name |
+| 1.19+ | TextDisplay | Native text display entity with better rendering |
+
+:::tip Automatic Version Detection
+
+You don't need to handle version differences manually. The `HologramFactory` automatically selects the appropriate implementation.
+
+:::
+
+---
+
+## Best Practices
+
+1. **Clean up holograms** - Always destroy holograms when they're no longer needed
+
+2. **Use reasonable update intervals** - Don't update too frequently (20+ ticks recommended)
+
+3. **Limit line count** - Too many lines can cause visual clutter
+
+4. **Cache dynamic values** - If dynamic lines require expensive calculations, cache them
+
+5. **Use viewer predicates wisely** - Complex predicates are evaluated for each player
+
+6. **Store hologram references** - Keep track of created holograms for proper cleanup
+
+:::warning Performance
+
+Creating many holograms with very short update intervals can impact server performance. Use update intervals of at least 20 ticks for dynamic content.
+
+:::
+
+:::info Packet-Based
+
+Fairy holograms are packet-based, meaning they don't create real entities in the world. This provides better performance and allows for player-specific visibility.
+
+:::

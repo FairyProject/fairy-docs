@@ -1,0 +1,567 @@
+---
+sidebar_position: 1
+description: Read and write NBT (Named Binary Tag) data on items and entities.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# NBT (Named Binary Tag)
+
+Fairy's NBT module provides a simple, version-independent API for reading and writing NBT data on ItemStacks. NBT data allows you to store custom information on items that persists through server restarts, chest storage, and player inventory changes.
+
+---
+
+## Overview
+
+The NBT system offers:
+
+- **Version independence** - Works across all Minecraft versions (1.8+)
+- **Fluent API** - Chain operations for cleaner code
+- **Type safety** - Proper handling of all NBT data types
+- **Nested key support** - Access deep NBT structures with dot notation
+- **Null safety** - Graceful handling of missing data
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:bukkit-nbt")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:bukkit-nbt'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Basic Usage
+
+```java
+import io.fairyproject.bukkit.nbt.NBTModifier;
+import org.bukkit.inventory.ItemStack;
+
+public class NBTExample {
+
+    public ItemStack addCustomData(ItemStack item) {
+        return NBTModifier.of(item)
+                .setString("custom_id", "sword_of_fire")
+                .setInt("damage_bonus", 10)
+                .setBoolean("is_enchanted", true)
+                .apply();
+    }
+
+    public String getCustomId(ItemStack item) {
+        return NBTModifier.of(item)
+                .getString("custom_id");
+    }
+}
+```
+
+---
+
+## NBTModifier
+
+The `NBTModifier` is the main class for NBT operations:
+
+### Creating a Modifier
+
+```java
+// From existing item
+NBTModifier modifier = NBTModifier.of(itemStack);
+
+// Apply changes and get modified item
+ItemStack modifiedItem = modifier
+        .setString("key", "value")
+        .apply();
+```
+
+### Data Types
+
+| Method | NBT Type | Java Type |
+|--------|----------|-----------|
+| `setString` / `getString` | TAG_String | `String` |
+| `setInt` / `getInt` | TAG_Int | `int` |
+| `setLong` / `getLong` | TAG_Long | `long` |
+| `setDouble` / `getDouble` | TAG_Double | `double` |
+| `setFloat` / `getFloat` | TAG_Float | `float` |
+| `setByte` / `getByte` | TAG_Byte | `byte` |
+| `setShort` / `getShort` | TAG_Short | `short` |
+| `setBoolean` / `getBoolean` | TAG_Byte (0/1) | `boolean` |
+| `setIntArray` / `getIntArray` | TAG_Int_Array | `int[]` |
+| `setByteArray` / `getByteArray` | TAG_Byte_Array | `byte[]` |
+
+---
+
+## Writing NBT Data
+
+### Basic Values
+
+```java
+ItemStack item = new ItemStack(Material.DIAMOND_SWORD);
+
+item = NBTModifier.of(item)
+        .setString("weapon_type", "sword")
+        .setInt("level", 5)
+        .setDouble("crit_chance", 0.15)
+        .setBoolean("soulbound", true)
+        .setLong("created_at", System.currentTimeMillis())
+        .apply();
+```
+
+### Arrays
+
+```java
+item = NBTModifier.of(item)
+        .setIntArray("stats", new int[]{10, 20, 30, 40})
+        .setByteArray("flags", new byte[]{1, 0, 1, 1})
+        .apply();
+```
+
+### Remove Values
+
+```java
+item = NBTModifier.of(item)
+        .remove("unwanted_key")
+        .apply();
+```
+
+---
+
+## Reading NBT Data
+
+### Basic Reading
+
+```java
+NBTModifier modifier = NBTModifier.of(item);
+
+String weaponType = modifier.getString("weapon_type");
+int level = modifier.getInt("level");
+double critChance = modifier.getDouble("crit_chance");
+boolean isSoulbound = modifier.getBoolean("soulbound");
+```
+
+### Default Values
+
+```java
+// Returns default if key doesn't exist
+int level = modifier.getInt("level", 1);  // Default: 1
+String type = modifier.getString("type", "unknown");  // Default: "unknown"
+boolean enabled = modifier.getBoolean("enabled", false);  // Default: false
+```
+
+### Check if Key Exists
+
+```java
+if (modifier.has("custom_id")) {
+    String id = modifier.getString("custom_id");
+    // Process custom item
+}
+```
+
+---
+
+## Nested Keys (NBTKey)
+
+Access nested NBT structures using dot notation or `NBTKey`:
+
+### Dot Notation
+
+```java
+// Write nested data
+item = NBTModifier.of(item)
+        .setString("enchantments.fire.level", "3")
+        .setString("enchantments.fire.damage", "5.0")
+        .setString("enchantments.ice.level", "2")
+        .apply();
+
+// Read nested data
+String fireLevel = NBTModifier.of(item).getString("enchantments.fire.level");
+```
+
+### NBTKey Class
+
+```java
+import io.fairyproject.bukkit.nbt.NBTKey;
+
+// Create keys for structured access
+NBTKey enchantmentsKey = NBTKey.of("enchantments");
+NBTKey fireLevelKey = NBTKey.of("enchantments", "fire", "level");
+
+// Use with modifier
+item = NBTModifier.of(item)
+        .setString(fireLevelKey, "5")
+        .apply();
+
+String level = NBTModifier.of(item).getString(fireLevelKey);
+```
+
+### Complex Nested Structures
+
+```java
+// Create a complex item with nested data
+item = NBTModifier.of(item)
+        // Item metadata
+        .setString("item.id", "legendary_sword")
+        .setString("item.display_name", "Excalibur")
+        .setInt("item.rarity", 5)
+
+        // Stats
+        .setInt("stats.damage", 50)
+        .setInt("stats.speed", 10)
+        .setDouble("stats.crit_chance", 0.25)
+        .setDouble("stats.crit_damage", 1.5)
+
+        // Enchantments
+        .setInt("enchantments.sharpness", 5)
+        .setInt("enchantments.fire_aspect", 2)
+        .setInt("enchantments.unbreaking", 3)
+
+        // Socket gems
+        .setString("gems.slot_1", "ruby")
+        .setString("gems.slot_2", "sapphire")
+        .setString("gems.slot_3", "emerald")
+
+        .apply();
+```
+
+---
+
+## Practical Examples
+
+### Custom Item System
+
+```java
+@InjectableComponent
+public class CustomItemService {
+
+    private static final String ITEM_ID_KEY = "custom_item_id";
+    private static final String ITEM_LEVEL_KEY = "custom_item_level";
+    private static final String ITEM_OWNER_KEY = "custom_item_owner";
+
+    public ItemStack createCustomItem(String itemId, int level, UUID owner) {
+        ItemStack base = getBaseItem(itemId);
+
+        return NBTModifier.of(base)
+                .setString(ITEM_ID_KEY, itemId)
+                .setInt(ITEM_LEVEL_KEY, level)
+                .setString(ITEM_OWNER_KEY, owner.toString())
+                .setLong("created_at", System.currentTimeMillis())
+                .apply();
+    }
+
+    public boolean isCustomItem(ItemStack item) {
+        if (item == null) return false;
+        return NBTModifier.of(item).has(ITEM_ID_KEY);
+    }
+
+    public String getItemId(ItemStack item) {
+        return NBTModifier.of(item).getString(ITEM_ID_KEY);
+    }
+
+    public int getItemLevel(ItemStack item) {
+        return NBTModifier.of(item).getInt(ITEM_LEVEL_KEY, 1);
+    }
+
+    public UUID getOwner(ItemStack item) {
+        String ownerString = NBTModifier.of(item).getString(ITEM_OWNER_KEY);
+        return ownerString != null ? UUID.fromString(ownerString) : null;
+    }
+
+    public ItemStack upgradeItem(ItemStack item) {
+        int currentLevel = getItemLevel(item);
+        return NBTModifier.of(item)
+                .setInt(ITEM_LEVEL_KEY, currentLevel + 1)
+                .apply();
+    }
+
+    private ItemStack getBaseItem(String itemId) {
+        // Return base ItemStack for this item ID
+        return new ItemStack(Material.DIAMOND_SWORD);
+    }
+}
+```
+
+### Soulbound Items
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class SoulboundService implements Listener {
+
+    private static final String SOULBOUND_KEY = "soulbound_owner";
+
+    public ItemStack makeSoulbound(ItemStack item, Player owner) {
+        return NBTModifier.of(item)
+                .setString(SOULBOUND_KEY, owner.getUniqueId().toString())
+                .apply();
+    }
+
+    public boolean isSoulbound(ItemStack item) {
+        return item != null && NBTModifier.of(item).has(SOULBOUND_KEY);
+    }
+
+    public boolean canUse(ItemStack item, Player player) {
+        if (!isSoulbound(item)) return true;
+
+        String ownerUuid = NBTModifier.of(item).getString(SOULBOUND_KEY);
+        return player.getUniqueId().toString().equals(ownerUuid);
+    }
+
+    @EventHandler
+    public void onPickup(PlayerPickupItemEvent event) {
+        ItemStack item = event.getItem().getItemStack();
+
+        if (isSoulbound(item) && !canUse(item, event.getPlayer())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("&cThis item is soulbound to another player!");
+        }
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        ItemStack item = event.getItemDrop().getItemStack();
+
+        if (isSoulbound(item)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("&cYou cannot drop soulbound items!");
+        }
+    }
+}
+```
+
+### Item Cooldowns
+
+```java
+@InjectableComponent
+public class ItemCooldownService {
+
+    private static final String LAST_USE_KEY = "last_use_time";
+    private static final String COOLDOWN_KEY = "cooldown_ms";
+
+    public ItemStack setCooldown(ItemStack item, long cooldownMs) {
+        return NBTModifier.of(item)
+                .setLong(COOLDOWN_KEY, cooldownMs)
+                .apply();
+    }
+
+    public boolean isOnCooldown(ItemStack item) {
+        NBTModifier modifier = NBTModifier.of(item);
+
+        if (!modifier.has(LAST_USE_KEY)) {
+            return false;
+        }
+
+        long lastUse = modifier.getLong(LAST_USE_KEY);
+        long cooldown = modifier.getLong(COOLDOWN_KEY, 0);
+
+        return System.currentTimeMillis() - lastUse < cooldown;
+    }
+
+    public long getRemainingCooldown(ItemStack item) {
+        NBTModifier modifier = NBTModifier.of(item);
+
+        if (!modifier.has(LAST_USE_KEY)) {
+            return 0;
+        }
+
+        long lastUse = modifier.getLong(LAST_USE_KEY);
+        long cooldown = modifier.getLong(COOLDOWN_KEY, 0);
+        long remaining = cooldown - (System.currentTimeMillis() - lastUse);
+
+        return Math.max(0, remaining);
+    }
+
+    public ItemStack markUsed(ItemStack item) {
+        return NBTModifier.of(item)
+                .setLong(LAST_USE_KEY, System.currentTimeMillis())
+                .apply();
+    }
+}
+```
+
+### RPG Stats System
+
+```java
+@InjectableComponent
+public class ItemStatsService {
+
+    // Stat keys
+    private static final NBTKey DAMAGE = NBTKey.of("stats", "damage");
+    private static final NBTKey DEFENSE = NBTKey.of("stats", "defense");
+    private static final NBTKey HEALTH = NBTKey.of("stats", "health");
+    private static final NBTKey CRIT_CHANCE = NBTKey.of("stats", "crit_chance");
+    private static final NBTKey CRIT_DAMAGE = NBTKey.of("stats", "crit_damage");
+    private static final NBTKey SPEED = NBTKey.of("stats", "speed");
+
+    public record ItemStats(
+            int damage,
+            int defense,
+            int health,
+            double critChance,
+            double critDamage,
+            int speed
+    ) {}
+
+    public ItemStack setStats(ItemStack item, ItemStats stats) {
+        return NBTModifier.of(item)
+                .setInt(DAMAGE, stats.damage())
+                .setInt(DEFENSE, stats.defense())
+                .setInt(HEALTH, stats.health())
+                .setDouble(CRIT_CHANCE, stats.critChance())
+                .setDouble(CRIT_DAMAGE, stats.critDamage())
+                .setInt(SPEED, stats.speed())
+                .apply();
+    }
+
+    public ItemStats getStats(ItemStack item) {
+        NBTModifier modifier = NBTModifier.of(item);
+
+        return new ItemStats(
+                modifier.getInt(DAMAGE, 0),
+                modifier.getInt(DEFENSE, 0),
+                modifier.getInt(HEALTH, 0),
+                modifier.getDouble(CRIT_CHANCE, 0.0),
+                modifier.getDouble(CRIT_DAMAGE, 1.0),
+                modifier.getInt(SPEED, 0)
+        );
+    }
+
+    public int getTotalDamage(Player player) {
+        int total = 0;
+
+        for (ItemStack armor : player.getInventory().getArmorContents()) {
+            if (armor != null) {
+                total += getStats(armor).damage();
+            }
+        }
+
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (mainHand != null) {
+            total += getStats(mainHand).damage();
+        }
+
+        return total;
+    }
+}
+```
+
+---
+
+## Working with Item Lore
+
+Combine NBT with visual lore:
+
+```java
+@InjectableComponent
+public class EnhancedItemBuilder {
+
+    public ItemStack createWeapon(String name, int damage, int level) {
+        ItemStack item = new ItemStack(Material.DIAMOND_SWORD);
+
+        // Store data in NBT
+        item = NBTModifier.of(item)
+                .setString("weapon_name", name)
+                .setInt("weapon_damage", damage)
+                .setInt("weapon_level", level)
+                .apply();
+
+        // Update visual lore
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(ChatColor.GOLD + name);
+        meta.setLore(List.of(
+                "",
+                ChatColor.GRAY + "Damage: " + ChatColor.RED + "+" + damage,
+                ChatColor.GRAY + "Level: " + ChatColor.GREEN + level,
+                "",
+                ChatColor.DARK_GRAY + "Legendary Weapon"
+        ));
+        item.setItemMeta(meta);
+
+        return item;
+    }
+
+    public ItemStack refreshLore(ItemStack item) {
+        NBTModifier modifier = NBTModifier.of(item);
+
+        String name = modifier.getString("weapon_name", "Unknown");
+        int damage = modifier.getInt("weapon_damage", 0);
+        int level = modifier.getInt("weapon_level", 1);
+
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(ChatColor.GOLD + name);
+        meta.setLore(List.of(
+                "",
+                ChatColor.GRAY + "Damage: " + ChatColor.RED + "+" + damage,
+                ChatColor.GRAY + "Level: " + ChatColor.GREEN + level
+        ));
+        item.setItemMeta(meta);
+
+        return item;
+    }
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use consistent key names** - Define keys as constants to avoid typos
+
+2. **Use NBTKey for nested data** - Cleaner than concatenating strings
+
+3. **Provide defaults** - Always use getters with default values for safety
+
+4. **Check for null items** - Always verify item is not null before NBT operations
+
+5. **Don't overuse NBT** - Large NBT data increases network traffic
+
+6. **Store IDs, not full data** - Store item IDs and look up full data from config/database
+
+:::tip NBT Size
+
+Each NBT tag adds to the item's data size. Keep NBT data minimal - store identifiers and look up full data from configuration files or databases.
+
+:::
+
+:::warning Item Comparison
+
+Items with different NBT data are not stackable and won't be equal. Be mindful when comparing items or checking for specific items in inventory.
+
+```java
+// These items are NOT equal due to different NBT
+ItemStack item1 = NBTModifier.of(new ItemStack(Material.STONE))
+        .setString("id", "a").apply();
+ItemStack item2 = NBTModifier.of(new ItemStack(Material.STONE))
+        .setString("id", "b").apply();
+
+item1.equals(item2);  // false
+item1.isSimilar(item2);  // false
+```
+
+:::
+
+---
+
+## Version Compatibility
+
+The NBT module works across all supported Minecraft versions:
+
+| Minecraft Version | Support Status |
+|-------------------|----------------|
+| 1.8.x - 1.12.x | Full support |
+| 1.13.x - 1.16.x | Full support |
+| 1.17.x - 1.20.x | Full support |
+| 1.21+ | Full support |
+
+Fairy handles the internal NMS/reflection differences automatically.

@@ -1,0 +1,8 @@
+{
+  "label": "Locale",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Multi-language support for Minecraft plugins."
+  }
+}

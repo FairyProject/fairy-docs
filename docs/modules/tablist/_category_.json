@@ -1,0 +1,8 @@
+{
+  "label": "Tablist",
+  "position": 9,
+  "link": {
+    "type": "generated-index",
+    "description": "Customize the player tab list with custom entries and formatting."
+  }
+}

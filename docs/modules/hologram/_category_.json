@@ -1,0 +1,8 @@
+{
+  "label": "Hologram",
+  "position": 8,
+  "link": {
+    "type": "generated-index",
+    "description": "Floating text displays in the Minecraft world."
+  }
+}

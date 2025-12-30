@@ -1,0 +1,621 @@
+---
+sidebar_position: 1
+description: Customize the player tab list with custom slots, columns, and formatting.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Tablist
+
+Fairy's tablist module provides a powerful API to customize the player tab list (the list shown when pressing TAB). It supports custom slots, columns, header/footer text, and player-specific content.
+
+---
+
+## Overview
+
+The tablist system offers:
+
+- **Custom slot layout** - Define exactly what appears in each tab position
+- **Column-based organization** - Organize entries into logical columns
+- **Header/Footer customization** - Add custom header and footer text
+- **Dynamic content** - Update tab content in real-time
+- **Player-specific tabs** - Show different content to different players
+- **Adapter pattern** - Easy integration with your plugin logic
+
+---
+
+## Quick Start
+
+### 1. Add Dependency
+
+<Tabs>
+    <TabItem value="gradle-kotlin" label="Gradle (Kotlin DSL)" default>
+
+```kotlin
+implementation("io.fairyproject:mc-tablist")
+```
+
+    </TabItem>
+    <TabItem value="gradle-groovy" label="Gradle (Groovy)">
+
+```groovy
+implementation 'io.fairyproject:mc-tablist'
+```
+
+    </TabItem>
+</Tabs>
+
+### 2. Create a Tablist Adapter
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.tablist.TablistAdapter;
+import io.fairyproject.mc.tablist.TabSlot;
+import org.bukkit.entity.Player;
+
+import java.util.List;
+
+@InjectableComponent
+public class MyTablistAdapter implements TablistAdapter {
+
+    @Override
+    public String getHeader(Player player) {
+        return "&6&lMy Server\n&7Welcome, " + player.getName();
+    }
+
+    @Override
+    public String getFooter(Player player) {
+        return "&7Players Online: &f" + Bukkit.getOnlinePlayers().size();
+    }
+
+    @Override
+    public List<TabSlot> getSlots(Player player) {
+        return List.of(
+            TabSlot.of("&e&lSTAFF", 0, 0),
+            TabSlot.of("&7No staff online", 0, 1),
+            TabSlot.of("&a&lPLAYERS", 1, 0),
+            TabSlot.of("&f" + player.getName(), 1, 1)
+        );
+    }
+}
+```
+
+---
+
+## TablistAdapter Interface
+
+The `TablistAdapter` is the core interface for customizing tab lists:
+
+```java
+public interface TablistAdapter {
+
+    /**
+     * Get the header text shown above the tab list
+     */
+    String getHeader(Player player);
+
+    /**
+     * Get the footer text shown below the tab list
+     */
+    String getFooter(Player player);
+
+    /**
+     * Get the custom slots to display in the tab list
+     */
+    List<TabSlot> getSlots(Player player);
+
+    /**
+     * Update interval in ticks (default: 20 = 1 second)
+     */
+    default long getUpdateInterval() {
+        return 20L;
+    }
+}
+```
+
+---
+
+## TabSlot
+
+### Creating Tab Slots
+
+```java
+// Basic slot with text, column, and row
+TabSlot slot = TabSlot.of("&aOnline Players", 0, 0);
+
+// Slot with custom ping (latency bars)
+TabSlot slot = TabSlot.of("&fPlayer1", 0, 1).ping(50);
+
+// Slot with player skin
+TabSlot slot = TabSlot.of("&fPlayer1", 0, 1).skin(player);
+```
+
+### TabSlot Builder
+
+```java
+TabSlot slot = TabSlot.builder()
+        .text("&e&lVIP Player")
+        .column(0)
+        .row(2)
+        .ping(20)
+        .skin(player)
+        .build();
+```
+
+### Tab Grid Layout
+
+The tab list is organized as a grid with columns and rows:
+
+```
+Column:  0          1          2          3
+Row 0:  [Slot]     [Slot]     [Slot]     [Slot]
+Row 1:  [Slot]     [Slot]     [Slot]     [Slot]
+Row 2:  [Slot]     [Slot]     [Slot]     [Slot]
+...     ...        ...        ...        ...
+Row 19: [Slot]     [Slot]     [Slot]     [Slot]
+```
+
+Standard tab dimensions:
+- **Columns**: 4 (0-3)
+- **Rows**: 20 (0-19)
+- **Total slots**: 80
+
+---
+
+## Column-Based Organization
+
+### TabColumn Helper
+
+Use `TabColumn` to organize related entries:
+
+```java
+import io.fairyproject.mc.tablist.TabColumn;
+
+@InjectableComponent
+public class OrganizedTablistAdapter implements TablistAdapter {
+
+    @Override
+    public List<TabSlot> getSlots(Player player) {
+        List<TabSlot> slots = new ArrayList<>();
+
+        // Column 0: Staff
+        TabColumn staffColumn = TabColumn.of(0);
+        staffColumn.add("&c&lSTAFF");
+        staffColumn.add("&7─────────");
+        for (Player staff : getOnlineStaff()) {
+            staffColumn.add("&c" + staff.getName());
+        }
+        slots.addAll(staffColumn.build());
+
+        // Column 1: VIPs
+        TabColumn vipColumn = TabColumn.of(1);
+        vipColumn.add("&6&lVIP");
+        vipColumn.add("&7─────────");
+        for (Player vip : getOnlineVIPs()) {
+            vipColumn.add("&6" + vip.getName());
+        }
+        slots.addAll(vipColumn.build());
+
+        // Column 2: Regular Players
+        TabColumn playerColumn = TabColumn.of(2);
+        playerColumn.add("&a&lPLAYERS");
+        playerColumn.add("&7─────────");
+        for (Player p : getRegularPlayers()) {
+            playerColumn.add("&a" + p.getName());
+        }
+        slots.addAll(playerColumn.build());
+
+        // Column 3: Server Info
+        TabColumn infoColumn = TabColumn.of(3);
+        infoColumn.add("&b&lSERVER");
+        infoColumn.add("&7─────────");
+        infoColumn.add("&bTPS: &f" + getTPS());
+        infoColumn.add("&bOnline: &f" + Bukkit.getOnlinePlayers().size());
+        infoColumn.add("&bTime: &f" + getCurrentTime());
+        slots.addAll(infoColumn.build());
+
+        return slots;
+    }
+
+    // ... helper methods
+}
+```
+
+---
+
+## Dynamic Content
+
+### Update Interval
+
+Control how often the tab list refreshes:
+
+```java
+@InjectableComponent
+public class DynamicTablistAdapter implements TablistAdapter {
+
+    @Override
+    public long getUpdateInterval() {
+        return 10L;  // Update every 10 ticks (0.5 seconds)
+    }
+
+    @Override
+    public String getHeader(Player player) {
+        // This will refresh every 10 ticks
+        return "&6&lMy Server\n&7" + getCurrentTime();
+    }
+
+    @Override
+    public List<TabSlot> getSlots(Player player) {
+        // Dynamic content that updates
+        return List.of(
+            TabSlot.of("&ePing: &f" + player.getPing() + "ms", 0, 0),
+            TabSlot.of("&eLevel: &f" + player.getLevel(), 0, 1),
+            TabSlot.of("&eHealth: &f" + (int) player.getHealth(), 0, 2)
+        );
+    }
+}
+```
+
+### Conditional Content
+
+Show different content based on conditions:
+
+```java
+@Override
+public List<TabSlot> getSlots(Player player) {
+    List<TabSlot> slots = new ArrayList<>();
+
+    // Show different content based on player's world
+    if (player.getWorld().getName().equals("pvp")) {
+        slots.add(TabSlot.of("&c&lPVP ARENA", 0, 0));
+        slots.add(TabSlot.of("&cKills: &f" + getKills(player), 0, 1));
+        slots.add(TabSlot.of("&cDeaths: &f" + getDeaths(player), 0, 2));
+    } else if (player.getWorld().getName().equals("creative")) {
+        slots.add(TabSlot.of("&a&lCREATIVE", 0, 0));
+        slots.add(TabSlot.of("&aPlots: &f" + getPlotCount(player), 0, 1));
+    } else {
+        slots.add(TabSlot.of("&e&lSURVIVAL", 0, 0));
+        slots.add(TabSlot.of("&eBalance: &f$" + getBalance(player), 0, 1));
+    }
+
+    return slots;
+}
+```
+
+---
+
+## Header and Footer
+
+### Multi-line Header/Footer
+
+```java
+@Override
+public String getHeader(Player player) {
+    return String.join("\n",
+        "",
+        "&6&l✦ MY SERVER ✦",
+        "&7Welcome back, &f" + player.getName(),
+        "&7Rank: " + getRank(player),
+        ""
+    );
+}
+
+@Override
+public String getFooter(Player player) {
+    return String.join("\n",
+        "",
+        "&7─────────────────────",
+        "&eWebsite: &fplay.myserver.com",
+        "&eDiscord: &fdiscord.gg/myserver",
+        "&ePlayers: &f" + Bukkit.getOnlinePlayers().size() + "/" + Bukkit.getMaxPlayers(),
+        ""
+    );
+}
+```
+
+### Animated Header
+
+```java
+@InjectableComponent
+public class AnimatedTablistAdapter implements TablistAdapter {
+
+    private int animationFrame = 0;
+    private final String[] frames = {
+        "&6&l✦ MY SERVER ✦",
+        "&e&l✦ MY SERVER ✦",
+        "&f&l✦ MY SERVER ✦",
+        "&e&l✦ MY SERVER ✦"
+    };
+
+    @Override
+    public long getUpdateInterval() {
+        return 5L;  // Fast updates for animation
+    }
+
+    @Override
+    public String getHeader(Player player) {
+        String title = frames[animationFrame % frames.length];
+        animationFrame++;
+
+        return "\n" + title + "\n&7Welcome, " + player.getName() + "\n";
+    }
+
+    // ... other methods
+}
+```
+
+---
+
+## Player Skins in Tab
+
+### Using Player Skins
+
+```java
+@Override
+public List<TabSlot> getSlots(Player player) {
+    List<TabSlot> slots = new ArrayList<>();
+
+    int row = 0;
+    for (Player online : Bukkit.getOnlinePlayers()) {
+        if (row >= 20) break;  // Max rows
+
+        slots.add(TabSlot.builder()
+                .text(getFormattedName(online))
+                .column(0)
+                .row(row)
+                .skin(online)  // Show player's skin
+                .ping(online.getPing())
+                .build());
+        row++;
+    }
+
+    return slots;
+}
+
+private String getFormattedName(Player player) {
+    if (player.hasPermission("rank.admin")) {
+        return "&c[Admin] " + player.getName();
+    } else if (player.hasPermission("rank.vip")) {
+        return "&6[VIP] " + player.getName();
+    }
+    return "&7" + player.getName();
+}
+```
+
+### Custom Skin Textures
+
+```java
+// Use a custom skin texture
+TabSlot slot = TabSlot.builder()
+        .text("&6Custom NPC")
+        .column(0)
+        .row(0)
+        .skinTexture("ewogICJ0aW1lc3RhbXAiIDog...")  // Base64 texture
+        .skinSignature("signature...")
+        .build();
+```
+
+---
+
+## Ping Indicators
+
+Control the connection bars shown next to entries:
+
+```java
+// Full bars (excellent connection)
+TabSlot.of("&aExcellent", 0, 0).ping(0);
+
+// Most bars (good connection)
+TabSlot.of("&eGood", 0, 1).ping(150);
+
+// Some bars (okay connection)
+TabSlot.of("&6Okay", 0, 2).ping(300);
+
+// Few bars (poor connection)
+TabSlot.of("&cPoor", 0, 3).ping(600);
+
+// No bars (very poor)
+TabSlot.of("&4Bad", 0, 4).ping(1000);
+
+// X icon (no connection / decorative)
+TabSlot.of("&8Offline", 0, 5).ping(-1);
+```
+
+---
+
+## Complete Example: Factions Server Tab
+
+```java
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.mc.tablist.TabColumn;
+import io.fairyproject.mc.tablist.TabSlot;
+import io.fairyproject.mc.tablist.TablistAdapter;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@InjectableComponent
+public class FactionsTablistAdapter implements TablistAdapter {
+
+    private final FactionService factionService;
+    private final EconomyService economyService;
+    private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
+
+    public FactionsTablistAdapter(FactionService factionService, EconomyService economyService) {
+        this.factionService = factionService;
+        this.economyService = economyService;
+    }
+
+    @Override
+    public String getHeader(Player player) {
+        Faction faction = factionService.getFaction(player);
+        String factionInfo = faction != null
+                ? "&7Faction: &f" + faction.getName() + " &8[&f" + faction.getOnlineCount() + "&8/&f" + faction.getSize() + "&8]"
+                : "&7No Faction";
+
+        return String.join("\n",
+            "",
+            "&6&l⚔ FACTIONS SERVER ⚔",
+            "&7" + factionInfo,
+            ""
+        );
+    }
+
+    @Override
+    public String getFooter(Player player) {
+        return String.join("\n",
+            "",
+            "&7═══════════════════════════",
+            "&eBalance: &f$" + economyService.format(player),
+            "&ePower: &f" + factionService.getPower(player) + "/" + factionService.getMaxPower(player),
+            "&eTime: &f" + timeFormat.format(new Date()),
+            "&7store.factionsserver.com",
+            ""
+        );
+    }
+
+    @Override
+    public List<TabSlot> getSlots(Player player) {
+        List<TabSlot> slots = new ArrayList<>();
+
+        // Column 0: Your Faction
+        slots.addAll(buildFactionColumn(player));
+
+        // Column 1: Allies
+        slots.addAll(buildAlliesColumn(player));
+
+        // Column 2: Enemies Online
+        slots.addAll(buildEnemiesColumn(player));
+
+        // Column 3: Server Info
+        slots.addAll(buildInfoColumn(player));
+
+        return slots;
+    }
+
+    private List<TabSlot> buildFactionColumn(Player player) {
+        TabColumn column = TabColumn.of(0);
+        column.add("&a&lYOUR FACTION");
+        column.add("&7─────────");
+
+        Faction faction = factionService.getFaction(player);
+        if (faction != null) {
+            for (Player member : faction.getOnlineMembers()) {
+                String prefix = faction.isLeader(member) ? "&c★ " : "&a";
+                column.add(prefix + member.getName());
+            }
+        } else {
+            column.add("&7No faction");
+            column.add("&7Use /f create");
+        }
+
+        return column.build();
+    }
+
+    private List<TabSlot> buildAlliesColumn(Player player) {
+        TabColumn column = TabColumn.of(1);
+        column.add("&b&lALLIES");
+        column.add("&7─────────");
+
+        Faction faction = factionService.getFaction(player);
+        if (faction != null) {
+            List<Player> allies = factionService.getOnlineAllies(faction);
+            if (allies.isEmpty()) {
+                column.add("&7No allies online");
+            } else {
+                for (Player ally : allies.subList(0, Math.min(allies.size(), 15))) {
+                    column.add("&b" + ally.getName());
+                }
+            }
+        } else {
+            column.add("&7─");
+        }
+
+        return column.build();
+    }
+
+    private List<TabSlot> buildEnemiesColumn(Player player) {
+        TabColumn column = TabColumn.of(2);
+        column.add("&c&lENEMIES");
+        column.add("&7─────────");
+
+        Faction faction = factionService.getFaction(player);
+        if (faction != null) {
+            List<Player> enemies = factionService.getOnlineEnemies(faction);
+            if (enemies.isEmpty()) {
+                column.add("&7No enemies online");
+            } else {
+                for (Player enemy : enemies.subList(0, Math.min(enemies.size(), 15))) {
+                    column.add("&c" + enemy.getName());
+                }
+            }
+        } else {
+            column.add("&7─");
+        }
+
+        return column.build();
+    }
+
+    private List<TabSlot> buildInfoColumn(Player player) {
+        TabColumn column = TabColumn.of(3);
+        column.add("&e&lSERVER INFO");
+        column.add("&7─────────");
+        column.add("&eOnline: &f" + Bukkit.getOnlinePlayers().size());
+        column.add("&eTPS: &f" + String.format("%.1f", getServerTPS()));
+        column.add("");
+        column.add("&6&lTOP FACTIONS");
+        column.add("&7─────────");
+
+        List<Faction> topFactions = factionService.getTopFactions(5);
+        int rank = 1;
+        for (Faction f : topFactions) {
+            column.add("&6#" + rank + " &f" + f.getName());
+            rank++;
+        }
+
+        return column.build();
+    }
+
+    @Override
+    public long getUpdateInterval() {
+        return 20L;  // Update every second
+    }
+
+    private double getServerTPS() {
+        // Implementation
+        return 20.0;
+    }
+}
+```
+
+---
+
+## Best Practices
+
+1. **Keep update intervals reasonable** - 20+ ticks for most cases, faster only for animations
+
+2. **Limit slot count** - Don't fill all 80 slots unnecessarily
+
+3. **Cache expensive data** - Don't query databases in adapter methods
+
+4. **Use columns logically** - Group related information together
+
+5. **Test with many players** - Tab list behavior may vary with player count
+
+6. **Handle null cases** - Players might not have factions, ranks, etc.
+
+:::tip Performance
+
+Tab list updates are sent to each player individually. Keep adapter methods fast and cache data that requires expensive lookups.
+
+:::
+
+:::warning Color Codes
+
+Use `&` color codes (Fairy translates them) or `§` directly. Long color strings may be truncated in some clients.
+
+:::
