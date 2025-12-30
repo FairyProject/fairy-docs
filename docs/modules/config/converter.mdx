@@ -1,8 +1,533 @@
 ---
 sidebar_position: 3
+description: Custom converters for configuration field serialization.
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Converter
 
-Well, I guess LeeGod is lazy to write this page! 😂
-Hype him up to write this page in our discord! 🎉
+Converters are responsible for transforming field values to and from formats that can be stored in configuration files. While the config module handles most types automatically, you can create custom converters for complex types.
+
+---
+
+## Overview
+
+A `Converter` transforms:
+- **Field values → Storable format** (when saving)
+- **Storable format → Field values** (when loading)
+
+This is useful for types like `Location`, `ItemStack`, `UUID`, or any custom objects that need special serialization logic.
+
+---
+
+## Built-in Converters
+
+The config module automatically handles these types:
+
+| Type | Storage Format | Notes |
+|------|----------------|-------|
+| `String`, `int`, `long`, `double`, `float`, `boolean`, `char` | Native YAML | Simple types |
+| `byte`, `short` | Number | Numeric types |
+| `Enum` | String | Enum constant name |
+| `List<T>` | YAML list | Elements must be convertible |
+| `Set<T>` | YAML list | Elements must be convertible |
+| `Map<String, T>` | YAML map | Keys must be strings |
+| `@ConfigurationElement` | YAML map | Nested configuration objects |
+
+---
+
+## Creating a Custom Converter
+
+### The Converter Interface
+
+```java
+import io.fairyproject.config.Converter;
+
+public interface Converter<S, T> {
+    /**
+     * Convert field value to storable format (when saving)
+     * @param element the field value
+     * @param info conversion context
+     * @return the storable value
+     */
+    T convertTo(S element, ConversionInfo info);
+
+    /**
+     * Convert storable format back to field value (when loading)
+     * @param element the stored value
+     * @param info conversion context
+     * @return the original field value
+     */
+    S convertFrom(T element, ConversionInfo info);
+}
+```
+
+### Example: Location Converter
+
+Here's a complete example for converting Bukkit `Location` to a map:
+
+```java
+import io.fairyproject.config.Converter;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class LocationConverter implements Converter<Location, Map<String, Object>> {
+
+    @Override
+    public Map<String, Object> convertTo(Location location, ConversionInfo info) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("world", location.getWorld().getName());
+        map.put("x", location.getX());
+        map.put("y", location.getY());
+        map.put("z", location.getZ());
+        map.put("yaw", location.getYaw());
+        map.put("pitch", location.getPitch());
+        return map;
+    }
+
+    @Override
+    public Location convertFrom(Map<String, Object> map, ConversionInfo info) {
+        String worldName = (String) map.get("world");
+        double x = ((Number) map.get("x")).doubleValue();
+        double y = ((Number) map.get("y")).doubleValue();
+        double z = ((Number) map.get("z")).doubleValue();
+        float yaw = ((Number) map.get("yaw")).floatValue();
+        float pitch = ((Number) map.get("pitch")).floatValue();
+
+        return new Location(Bukkit.getWorld(worldName), x, y, z, yaw, pitch);
+    }
+}
+```
+
+### Using the Converter
+
+Apply the converter to a field using the `@Convert` annotation:
+
+```java
+import io.fairyproject.config.YamlConfiguration;
+import io.fairyproject.config.annotation.Convert;
+import org.bukkit.Location;
+
+public class SpawnConfig extends YamlConfiguration {
+
+    @Convert(LocationConverter.class)
+    private Location spawnLocation = new Location(Bukkit.getWorld("world"), 0, 64, 0);
+
+    public SpawnConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("spawns.yml"));
+        this.loadAndSave();
+    }
+
+    public Location getSpawnLocation() {
+        return spawnLocation;
+    }
+
+    public void setSpawnLocation(Location location) {
+        this.spawnLocation = location;
+    }
+}
+```
+
+### Resulting YAML
+
+```yaml
+spawnLocation:
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+```
+
+---
+
+## More Converter Examples
+
+### UUID Converter
+
+Convert UUID to its string representation:
+
+```java
+import io.fairyproject.config.Converter;
+import java.util.UUID;
+
+public class UUIDConverter implements Converter<UUID, String> {
+
+    @Override
+    public String convertTo(UUID uuid, ConversionInfo info) {
+        return uuid.toString();
+    }
+
+    @Override
+    public UUID convertFrom(String element, ConversionInfo info) {
+        return UUID.fromString(element);
+    }
+}
+```
+
+**Usage:**
+
+```java
+@Convert(UUIDConverter.class)
+private UUID playerId = UUID.randomUUID();
+```
+
+**YAML output:**
+
+```yaml
+playerId: "550e8400-e29b-41d4-a716-446655440000"
+```
+
+### ItemStack Converter
+
+Convert Bukkit ItemStack to a serializable map:
+
+```java
+import io.fairyproject.config.Converter;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.Map;
+
+public class ItemStackConverter implements Converter<ItemStack, Map<String, Object>> {
+
+    @Override
+    public Map<String, Object> convertTo(ItemStack item, ConversionInfo info) {
+        return item.serialize();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public ItemStack convertFrom(Map<String, Object> map, ConversionInfo info) {
+        return ItemStack.deserialize(map);
+    }
+}
+```
+
+**Usage:**
+
+```java
+@Convert(ItemStackConverter.class)
+private ItemStack reward = new ItemStack(Material.DIAMOND, 5);
+```
+
+### Duration Converter
+
+Convert Java Duration to human-readable format:
+
+```java
+import io.fairyproject.config.Converter;
+import java.time.Duration;
+
+public class DurationConverter implements Converter<Duration, String> {
+
+    @Override
+    public String convertTo(Duration duration, ConversionInfo info) {
+        // Convert to ISO-8601 format: PT1H30M
+        return duration.toString();
+    }
+
+    @Override
+    public Duration convertFrom(String element, ConversionInfo info) {
+        return Duration.parse(element);
+    }
+}
+```
+
+**Usage:**
+
+```java
+@Convert(DurationConverter.class)
+private Duration cooldown = Duration.ofMinutes(30);
+```
+
+**YAML output:**
+
+```yaml
+cooldown: "PT30M"
+```
+
+---
+
+## ConversionInfo
+
+The `ConversionInfo` parameter provides context about the conversion:
+
+| Method | Description |
+|--------|-------------|
+| `getField()` | The field being converted |
+| `getFieldName()` | Name of the field |
+| `getFieldType()` | Type of the field |
+| `getValue()` | Default value assigned to field |
+| `getMapValue()` | Value from config (when loading) |
+| `getInstance()` | Object instance containing the field |
+| `getElementType()` | Type from `@ElementType` annotation |
+| `hasElementType()` | Whether `@ElementType` is present |
+
+### Using ConversionInfo
+
+```java
+public class SmartConverter implements Converter<Object, Object> {
+
+    @Override
+    public Object convertTo(Object element, ConversionInfo info) {
+        // Access field metadata
+        String fieldName = info.getFieldName();
+        Class<?> fieldType = info.getFieldType();
+
+        System.out.println("Converting field: " + fieldName + " of type: " + fieldType);
+
+        // Your conversion logic
+        return element.toString();
+    }
+
+    @Override
+    public Object convertFrom(Object element, ConversionInfo info) {
+        // Use field type for deserialization
+        Class<?> targetType = info.getFieldType();
+
+        // Your conversion logic
+        return element;
+    }
+}
+```
+
+---
+
+## Pre-Conversion Hooks
+
+You can execute logic before conversion:
+
+```java
+public class ValidatingConverter implements Converter<String, String> {
+
+    @Override
+    public void preConvertTo(ConversionInfo info) {
+        // Called before convertTo
+        if (info.getValue() == null) {
+            throw new IllegalStateException("Field " + info.getFieldName() + " cannot be null");
+        }
+    }
+
+    @Override
+    public String convertTo(String element, ConversionInfo info) {
+        return element.toUpperCase();
+    }
+
+    @Override
+    public void preConvertFrom(ConversionInfo info) {
+        // Called before convertFrom
+        if (info.getMapValue() == null) {
+            System.out.println("Warning: No value in config for " + info.getFieldName());
+        }
+    }
+
+    @Override
+    public String convertFrom(String element, ConversionInfo info) {
+        return element != null ? element.toLowerCase() : info.getValue().toString();
+    }
+}
+```
+
+---
+
+## Converting Collections
+
+### Lists with Custom Elements
+
+For lists of custom types, use `@ElementType` with your converter:
+
+```java
+import io.fairyproject.config.annotation.ElementType;
+
+public class WarpsConfig extends YamlConfiguration {
+
+    @Convert(LocationConverter.class)
+    @ElementType(Location.class)
+    private List<Location> warps = new ArrayList<>();
+
+    // ...
+}
+```
+
+**YAML output:**
+
+```yaml
+warps:
+  - world: world
+    x: 100.0
+    y: 64.0
+    z: 200.0
+    yaw: 0.0
+    pitch: 0.0
+  - world: nether
+    x: 50.0
+    y: 32.0
+    z: -100.0
+    yaw: 90.0
+    pitch: 0.0
+```
+
+### Maps with Custom Values
+
+```java
+@Convert(LocationConverter.class)
+@ElementType(Location.class)
+private Map<String, Location> namedWarps = new HashMap<>();
+```
+
+**YAML output:**
+
+```yaml
+namedWarps:
+  spawn:
+    world: world
+    x: 0.0
+    y: 64.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+  arena:
+    world: world
+    x: 500.0
+    y: 100.0
+    z: 500.0
+    yaw: 180.0
+    pitch: 0.0
+```
+
+---
+
+## Skipping Conversion
+
+Use `@NoConvert` to skip automatic conversion for a field:
+
+```java
+import io.fairyproject.config.annotation.NoConvert;
+
+public class MyConfig extends YamlConfiguration {
+
+    @NoConvert
+    private Object rawData = "some data";
+
+    // ...
+}
+```
+
+The field will be stored as-is without any conversion.
+
+---
+
+## Best Practices
+
+1. **Handle null values** - Always check for null in `convertFrom`
+2. **Use proper number types** - Cast numbers carefully (`((Number) map.get("x")).doubleValue()`)
+3. **Validate input** - Use `preConvertFrom` to validate before conversion
+4. **Keep converters simple** - One converter per type
+5. **Cache converter instances** - Fairy caches converters automatically
+6. **Thread safety** - Converters should be stateless and thread-safe
+
+:::warning No-Args Constructor Required
+
+Converter classes must have a no-args constructor. Fairy instantiates converters automatically.
+
+```java
+// Good - has implicit no-args constructor
+public class MyConverter implements Converter<A, B> { ... }
+
+// Bad - no no-args constructor
+public class MyConverter implements Converter<A, B> {
+    public MyConverter(String param) { ... }  // This won't work!
+}
+```
+
+:::
+
+---
+
+## Complete Example
+
+Here's a complete configuration class using multiple converters:
+
+```java
+import io.fairyproject.config.YamlConfiguration;
+import io.fairyproject.config.annotation.Comment;
+import io.fairyproject.config.annotation.Convert;
+import io.fairyproject.config.annotation.ElementType;
+import lombok.Getter;
+import lombok.Setter;
+import org.bukkit.Location;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+
+import java.time.Duration;
+import java.util.*;
+
+@Getter
+@Setter
+public class GameConfig extends YamlConfiguration {
+
+    @Comment("The main spawn location")
+    @Convert(LocationConverter.class)
+    private Location spawn = new Location(Bukkit.getWorld("world"), 0, 64, 0);
+
+    @Comment("Arena locations")
+    @Convert(LocationConverter.class)
+    @ElementType(Location.class)
+    private Map<String, Location> arenas = new HashMap<>();
+
+    @Comment("Reward items")
+    @Convert(ItemStackConverter.class)
+    @ElementType(ItemStack.class)
+    private List<ItemStack> rewards = new ArrayList<>();
+
+    @Comment("Game cooldown")
+    @Convert(DurationConverter.class)
+    private Duration cooldown = Duration.ofMinutes(5);
+
+    @Comment("Owner UUID")
+    @Convert(UUIDConverter.class)
+    private UUID owner = UUID.randomUUID();
+
+    public GameConfig(Plugin plugin) {
+        super(plugin.getDataFolder().toPath().resolve("game.yml"));
+        this.loadAndSave();
+    }
+
+    @Override
+    public void postLoad() {
+        System.out.println("Game config loaded with " + arenas.size() + " arenas");
+    }
+}
+```
+
+**Resulting YAML:**
+
+```yaml
+# The main spawn location
+spawn:
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+
+# Arena locations
+arenas: {}
+
+# Reward items
+rewards: []
+
+# Game cooldown
+cooldown: "PT5M"
+
+# Owner UUID
+owner: "550e8400-e29b-41d4-a716-446655440000"
+```

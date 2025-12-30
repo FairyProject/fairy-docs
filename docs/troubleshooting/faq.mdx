@@ -1,0 +1,539 @@
+---
+sidebar_position: 1
+description: Frequently asked questions and common solutions for Fairy development.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Troubleshooting & FAQ
+
+This page covers common issues and their solutions when developing with Fairy Framework.
+
+---
+
+## Installation Issues
+
+### Dependencies Not Downloading
+
+**Problem:** Gradle fails to download Fairy dependencies.
+
+**Solutions:**
+
+1. **Check your Gradle version** - Fairy requires Gradle 8.0+
+   ```shell
+   ./gradlew --version
+   ```
+
+2. **Verify repository configuration** - Ensure you have the Fairy repository:
+   ```kotlin
+   repositories {
+       mavenCentral()
+       maven("https://repo.imanity.dev/imanity-libraries")
+   }
+   ```
+
+3. **Clear Gradle cache** - Sometimes cached metadata is corrupted:
+   ```shell
+   ./gradlew clean build --refresh-dependencies
+   ```
+
+4. **Check network connectivity** - Try accessing https://repo.imanity.dev directly
+
+---
+
+### Gradle Build Fails
+
+**Problem:** Build fails with unresolved dependency errors.
+
+**Solutions:**
+
+1. **Check Fairy version** - Use a valid version from the repository
+   ```kotlin
+   implementation("io.fairyproject:bukkit-bundles:0.7.5")
+   ```
+
+2. **Sync with Gradle wrapper** - Use the project's wrapper:
+   ```shell
+   ./gradlew wrapper --gradle-version 8.14
+   ```
+
+3. **Check Java version** - Fairy framework requires Java 21 to build:
+   ```shell
+   java --version
+   ```
+
+---
+
+### IDE Configuration Issues
+
+**Problem:** IntelliJ IDEA shows red errors but project compiles.
+
+**Solutions:**
+
+1. **Invalidate caches**
+   - Go to **File** → **Invalidate Caches** → **Invalidate and Restart**
+
+2. **Re-import Gradle project**
+   - Open Gradle tab → Click refresh button
+
+3. **Check annotation processing**
+   - Go to **Settings** → **Build** → **Compiler** → **Annotation Processors**
+   - Enable **"Obtain processors from project classpath"**
+
+---
+
+## Container Issues
+
+### Component Not Being Scanned
+
+**Problem:** Your `@InjectableComponent` class is not being initialized.
+
+**Solutions:**
+
+1. **Check package scanning** - Ensure your class is in a scanned package:
+   ```kotlin
+   // In build.gradle.kts
+   fairy {
+       mainPackage.set("com.example.myplugin")  // Your base package
+   }
+   ```
+
+2. **Verify annotation** - Use the correct annotation:
+   ```java
+   import io.fairyproject.container.InjectableComponent;
+
+   @InjectableComponent  // Not @Component from other frameworks!
+   public class MyService {
+   }
+   ```
+
+3. **Check class visibility** - The class must be `public`:
+   ```java
+   // Wrong - package-private
+   @InjectableComponent
+   class MyService { }
+
+   // Correct - public
+   @InjectableComponent
+   public class MyService { }
+   ```
+
+4. **Check for missing dependencies** - If your component depends on another that failed:
+   ```java
+   @InjectableComponent
+   public class MyService {
+       // If MyRepository fails to initialize, MyService will also fail
+       public MyService(MyRepository repository) { }
+   }
+   ```
+
+---
+
+### Circular Dependency Error
+
+**Problem:** Container fails with "Circular dependency detected" error.
+
+**Example:**
+```java
+@InjectableComponent
+public class ServiceA {
+    public ServiceA(ServiceB b) { }  // ServiceA needs ServiceB
+}
+
+@InjectableComponent
+public class ServiceB {
+    public ServiceB(ServiceA a) { }  // ServiceB needs ServiceA - Circular!
+}
+```
+
+**Solutions:**
+
+1. **Use field injection for one dependency**:
+   ```java
+   @InjectableComponent
+   public class ServiceA {
+       @Autowired
+       private ServiceB serviceB;
+
+       @PostConstruct
+       public void init() {
+           // Now serviceB is available
+       }
+   }
+   ```
+
+2. **Refactor to remove circular dependency** - Extract shared logic:
+   ```java
+   @InjectableComponent
+   public class SharedLogic { }
+
+   @InjectableComponent
+   public class ServiceA {
+       public ServiceA(SharedLogic shared) { }
+   }
+
+   @InjectableComponent
+   public class ServiceB {
+       public ServiceB(SharedLogic shared) { }
+   }
+   ```
+
+3. **Use `@DependsOn` to control initialization order**:
+   ```java
+   @InjectableComponent
+   @DependsOn(ServiceB.class)
+   public class ServiceA {
+       @Autowired
+       private ServiceB serviceB;
+   }
+   ```
+
+---
+
+### Dependency Injection Fails
+
+**Problem:** `@Autowired` field is null at runtime.
+
+**Solutions:**
+
+1. **Check injection timing** - Field injection happens after construction:
+   ```java
+   @InjectableComponent
+   public class MyService {
+       @Autowired
+       private OtherService other;
+
+       public MyService() {
+           // other is NULL here!
+       }
+
+       @PostConstruct
+       public void init() {
+           // other is available here
+       }
+   }
+   ```
+
+2. **Prefer constructor injection**:
+   ```java
+   @InjectableComponent
+   public class MyService {
+       private final OtherService other;
+
+       public MyService(OtherService other) {
+           this.other = other;  // Always available
+       }
+   }
+   ```
+
+3. **Verify the dependency is a component**:
+   ```java
+   // This class must also be an @InjectableComponent
+   @InjectableComponent
+   public class OtherService { }
+   ```
+
+---
+
+## Runtime Issues
+
+### Plugin Not Loading
+
+**Problem:** Plugin shows as loaded but Fairy components don't initialize.
+
+**Solutions:**
+
+1. **Check plugin.yml** - Ensure it's correctly generated:
+   ```yaml
+   name: MyPlugin
+   main: com.example.myplugin.MyPlugin
+   ```
+
+2. **Check for initialization errors** - Look in console for stack traces
+
+3. **Verify fairy-lib-plugin** - If using lib plugin mode:
+   - Ensure `fairy-lib-plugin` is installed
+   - Check that versions match
+
+4. **Check `loadAndSave` for configs**:
+   ```java
+   public class MyConfig extends YamlConfiguration {
+       public MyConfig(Plugin plugin) {
+           super(plugin.getDataFolder().toPath().resolve("config.yml"));
+           this.loadAndSave();  // Don't forget this!
+       }
+   }
+   ```
+
+---
+
+### Event Listener Not Firing
+
+**Problem:** `@EventHandler` methods are not being called.
+
+**Solutions:**
+
+1. **Add `@RegisterAsListener`**:
+   ```java
+   @InjectableComponent
+   @RegisterAsListener  // Required!
+   public class MyListener implements Listener {
+       @EventHandler
+       public void onPlayerJoin(PlayerJoinEvent event) { }
+   }
+   ```
+
+2. **Implement Listener interface**:
+   ```java
+   @InjectableComponent
+   @RegisterAsListener
+   public class MyListener implements Listener {  // Don't forget!
+   }
+   ```
+
+3. **Check event priority and cancellation**:
+   ```java
+   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+   public void onEvent(PlayerEvent event) {
+       // May not fire if cancelled by earlier handler
+   }
+   ```
+
+---
+
+### Scheduler Tasks Not Executing
+
+**Problem:** Scheduled tasks don't run or throw errors.
+
+**Solutions:**
+
+1. **Use Fairy's MCScheduler instead of Bukkit's**:
+   ```java
+   // Wrong
+   Bukkit.getScheduler().runTask(plugin, () -> { });
+
+   // Correct
+   @InjectableComponent
+   public class MyService {
+       private final MCSchedulers schedulers;
+
+       public MyService(MCSchedulers schedulers) {
+           this.schedulers = schedulers;
+       }
+
+       public void doSomething() {
+           schedulers.getGlobalScheduler().schedule(() -> {
+               // Task code
+           }, 20L);  // 20 ticks = 1 second
+       }
+   }
+   ```
+
+2. **Check for Folia compatibility**:
+   ```java
+   // For entity-specific tasks on Folia
+   schedulers.getEntityScheduler(entity).schedule(() -> {
+       // Safe on Folia
+   }, 1L);
+   ```
+
+---
+
+## Version Compatibility
+
+### Minecraft Version Issues
+
+**Problem:** Plugin crashes or behaves unexpectedly on certain MC versions.
+
+**Compatibility table:**
+
+| Minecraft Version | Required Java | Notes |
+|-------------------|---------------|-------|
+| 1.8.x - 1.16.x | Java 8 | Legacy support |
+| 1.17.x - 1.20.4 | Java 17 | Modern versions |
+| 1.20.5+ | Java 21 | Latest versions |
+
+**Solutions:**
+
+1. **Set correct Java version in build.gradle.kts**:
+   ```kotlin
+   java {
+       toolchain {
+           languageVersion.set(JavaLanguageVersion.of(8))  // For 1.8-1.16
+       }
+   }
+
+   runServer {
+       version = "1.21"
+       javaVersion.set(JavaVersion.VERSION_21)
+   }
+   ```
+
+2. **Use XSeries for cross-version compatibility**:
+   ```java
+   // Instead of Material.GRASS_BLOCK (may not exist in old versions)
+   XMaterial.GRASS_BLOCK.parseMaterial()
+   ```
+
+---
+
+### Server Software Issues
+
+**Problem:** Plugin works on Spigot but not Paper/Folia.
+
+**Solutions:**
+
+1. **For Folia** - Use location/entity schedulers:
+   ```java
+   // Global scheduler may not work in Folia for entity operations
+   schedulers.getEntityScheduler(player).schedule(() -> {
+       player.teleport(location);
+   }, 1L);
+   ```
+
+2. **Check for Paper-specific APIs** - Some Paper features need fallbacks:
+   ```java
+   try {
+       // Paper API
+       player.sendActionBar(Component.text("Hello"));
+   } catch (NoSuchMethodError e) {
+       // Spigot fallback
+       player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+           TextComponent.fromLegacyText("Hello"));
+   }
+   ```
+
+---
+
+## Performance Issues
+
+### High CPU Usage
+
+**Problem:** Plugin causes high CPU usage.
+
+**Solutions:**
+
+1. **Avoid synchronous database operations**:
+   ```java
+   // Wrong - blocks main thread
+   public void savePlayer(Player player) {
+       database.save(player);  // Blocking!
+   }
+
+   // Correct - async
+   public void savePlayer(Player player) {
+       schedulers.getAsyncScheduler().schedule(() -> {
+           database.save(player);
+       });
+   }
+   ```
+
+2. **Cache expensive operations**:
+   ```java
+   private final Map<UUID, PlayerData> cache = new ConcurrentHashMap<>();
+
+   public PlayerData getData(Player player) {
+       return cache.computeIfAbsent(player.getUniqueId(),
+           uuid -> database.load(uuid));
+   }
+   ```
+
+3. **Reduce event listener overhead**:
+   ```java
+   // Avoid processing every PlayerMoveEvent
+   @EventHandler
+   public void onMove(PlayerMoveEvent event) {
+       if (event.getTo() == null) return;
+       if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
+           event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+           return;  // Player didn't move to a new block
+       }
+       // Process actual movement
+   }
+   ```
+
+---
+
+### Memory Leaks
+
+**Problem:** Server memory usage keeps increasing.
+
+**Solutions:**
+
+1. **Clean up on player quit**:
+   ```java
+   @InjectableComponent
+   @RegisterAsListener
+   public class PlayerCache implements Listener {
+       private final Map<UUID, Object> cache = new HashMap<>();
+
+       @EventHandler
+       public void onQuit(PlayerQuitEvent event) {
+           cache.remove(event.getPlayer().getUniqueId());
+       }
+   }
+   ```
+
+2. **Use weak references for entity caches**:
+   ```java
+   private final Map<UUID, WeakReference<Entity>> entities = new WeakHashMap<>();
+   ```
+
+3. **Close resources properly**:
+   ```java
+   @InjectableComponent
+   public class MyService {
+       @PreDestroy
+       public void cleanup() {
+           // Close database connections, cancel tasks, etc.
+       }
+   }
+   ```
+
+---
+
+## Debugging Tips
+
+### Enable Debug Logging
+
+Add to your plugin's initialization:
+
+```java
+Debug.setEnabled(true);  // Enable Fairy debug output
+```
+
+### Check Component Registration
+
+```java
+@InjectableComponent
+public class DebugComponent {
+    @PostConstruct
+    public void init() {
+        System.out.println("DebugComponent initialized!");
+    }
+}
+```
+
+### Inspect Event Flow
+
+```java
+@EventHandler(priority = EventPriority.MONITOR)
+public void debugEvent(PlayerEvent event) {
+    System.out.println("[DEBUG] Event: " + event.getEventName() +
+        " | Player: " + event.getPlayer().getName());
+}
+```
+
+---
+
+## Community Resources
+
+### Getting Help
+
+- **Discord**: Join the Fairy Discord server for community support
+- **GitHub Issues**: Report bugs at https://github.com/FairyProject/fairy/issues
+
+### Contributing
+
+Found a bug or have a fix? See the [Contributing Guide](/community/contributing) for how to submit pull requests.

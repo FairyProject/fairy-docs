@@ -1,9 +1,412 @@
 ---
 sidebar_position: 4
-description: Event node for Bukkit environment
+description: A powerful event filtering and handling system using event nodes.
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Event Node
 
-Well, I guess LeeGod is lazy to write this page! 😂
-Hype him up to write this page in our discord!
+Event Node is a powerful event handling system that provides a graph-based approach to event filtering and processing. Unlike traditional Bukkit listeners, Event Nodes allow you to create hierarchical event structures with conditional filtering, priority ordering, and dynamic management.
+
+---
+
+## Overview
+
+The Event Node system provides:
+- **Hierarchical Structure**: Create parent-child relationships between event handlers
+- **Conditional Filtering**: Filter events based on event data or handler targets
+- **Priority Ordering**: Control the execution order of event handlers
+- **Dynamic Management**: Add, remove, or replace event handlers at runtime
+- **Type Safety**: Strong typing for event types and handlers
+
+---
+
+## Basic Usage
+
+### Injecting BukkitEventNode
+
+The `BukkitEventNode` is the global event node for all Bukkit events. Inject it into your component:
+
+```java
+import io.fairyproject.bukkit.events.BukkitEventNode;
+import io.fairyproject.container.InjectableComponent;
+import org.bukkit.event.player.PlayerJoinEvent;
+
+@InjectableComponent
+public class MyEventHandler {
+    private final BukkitEventNode eventNode;
+
+    public MyEventHandler(BukkitEventNode eventNode) {
+        this.eventNode = eventNode;
+
+        // Add a simple listener
+        eventNode.addListener(PlayerJoinEvent.class, event -> {
+            event.getPlayer().sendMessage("Welcome to the server!");
+        });
+    }
+}
+```
+
+### Creating Event Nodes
+
+You can create standalone event nodes for more organized event handling:
+
+```java
+import io.fairyproject.event.EventNode;
+import io.fairyproject.event.EventFilter;
+import org.bukkit.event.Event;
+
+// Create a node that accepts all events
+EventNode<Event> allEventsNode = EventNode.all("my-node");
+
+// Create a node with a specific event filter
+EventNode<PlayerEvent> playerNode = EventNode.type("player-events", BukkitEventFilter.PLAYER);
+```
+
+---
+
+## Event Filters
+
+Event filters define what type of events a node accepts and provide access to the event's handler (target).
+
+### Available Bukkit Filters
+
+| Filter | Event Type | Handler Type | Description |
+|--------|------------|--------------|-------------|
+| `BukkitEventFilter.ALL` | `Event` | - | Accepts all Bukkit events |
+| `BukkitEventFilter.PLAYER` | `PlayerEvent` | `Player` | Player-related events |
+| `BukkitEventFilter.ENTITY` | `EntityEvent` | `Entity` | Entity-related events |
+| `BukkitEventFilter.BLOCK` | `BlockEvent` | `Block` | Block-related events |
+| `BukkitEventFilter.WORLD` | `WorldEvent` | `World` | World-related events |
+| `BukkitEventFilter.INVENTORY` | `InventoryEvent` | `Inventory` | Inventory-related events |
+| `BukkitEventFilter.PLUGIN` | `PluginEvent` | `Plugin` | Plugin-related events |
+
+### Using Filters with Conditions
+
+```java
+import io.fairyproject.bukkit.events.BukkitEventFilter;
+import io.fairyproject.event.EventNode;
+import org.bukkit.GameMode;
+import org.bukkit.event.player.PlayerEvent;
+
+// Create a node that only accepts events from players in creative mode
+EventNode<PlayerEvent> creativePlayerNode = EventNode.value(
+    "creative-players",
+    BukkitEventFilter.PLAYER,
+    player -> player.getGameMode() == GameMode.CREATIVE
+);
+
+// Create a node with event-based condition
+EventNode<PlayerEvent> specificWorldNode = EventNode.event(
+    "specific-world",
+    BukkitEventFilter.PLAYER,
+    event -> event.getPlayer().getWorld().getName().equals("world")
+);
+
+// Create a node with both event and handler condition
+EventNode<PlayerEvent> customNode = EventNode.type(
+    "custom-filter",
+    BukkitEventFilter.PLAYER,
+    (event, player) -> player.hasPermission("my.permission")
+);
+```
+
+---
+
+## Event Listeners
+
+### Simple Listener
+
+```java
+eventNode.addListener(PlayerJoinEvent.class, event -> {
+    event.getPlayer().sendMessage("Hello!");
+});
+```
+
+### Builder Pattern
+
+For more control, use the `EventListener.builder()`:
+
+```java
+import io.fairyproject.event.EventListener;
+import org.bukkit.event.player.PlayerMoveEvent;
+
+EventListener<PlayerMoveEvent> listener = EventListener.builder(PlayerMoveEvent.class)
+    .filter(event -> event.getTo() != null)                    // Only process if destination exists
+    .ignoreCancelled(true)                                      // Skip cancelled events (default)
+    .expireCount(10)                                            // Remove after 10 executions
+    .expireWhen(event -> event.getPlayer().isDead())           // Remove when player dies
+    .handler(event -> {
+        // Handle the event
+        event.getPlayer().sendMessage("You moved!");
+    })
+    .build();
+
+eventNode.addListener(listener);
+```
+
+### Listener Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `filter(Predicate)` | Additional condition for the event to pass | None |
+| `ignoreCancelled(boolean)` | Whether to skip cancelled events | `true` |
+| `expireCount(int)` | Remove listener after N executions | 0 (never) |
+| `expireWhen(Predicate)` | Remove listener when condition is met | None |
+| `handler(Consumer)` | The event handler function | Required |
+
+---
+
+## Node Hierarchy
+
+### Parent-Child Relationships
+
+Event nodes can have child nodes, creating a hierarchical structure:
+
+```java
+import io.fairyproject.bukkit.events.BukkitEventFilter;
+import io.fairyproject.bukkit.events.BukkitEventNode;
+import io.fairyproject.event.EventNode;
+import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+
+@InjectableComponent
+public class PlayerEventManager {
+    public PlayerEventManager(BukkitEventNode globalNode) {
+        // Create a child node for player events
+        EventNode<PlayerEvent> playerNode = EventNode.type("player-events", BukkitEventFilter.PLAYER);
+
+        // Add listeners to the child node
+        playerNode.addListener(PlayerJoinEvent.class, event -> {
+            System.out.println(event.getPlayer().getName() + " joined!");
+        });
+
+        playerNode.addListener(PlayerQuitEvent.class, event -> {
+            System.out.println(event.getPlayer().getName() + " left!");
+        });
+
+        // Attach to global node
+        globalNode.addChild(playerNode);
+    }
+}
+```
+
+### Priority System
+
+Child nodes and listeners are executed based on their priority:
+
+```java
+EventNode<Event> highPriority = EventNode.all("high-priority").setPriority(1);
+EventNode<Event> lowPriority = EventNode.all("low-priority").setPriority(10);
+
+// Lower number = higher priority (executed first)
+globalNode.addChild(highPriority);   // Executed first
+globalNode.addChild(lowPriority);    // Executed second
+```
+
+---
+
+## Dynamic Node Management
+
+### Adding and Removing Children
+
+```java
+// Add a child node
+EventNode<Event> childNode = EventNode.all("child");
+parentNode.addChild(childNode);
+
+// Remove a child node
+parentNode.removeChild(childNode);
+
+// Remove all children with a specific name
+parentNode.removeChildren("child");
+```
+
+### Finding Children
+
+```java
+// Find all children with a specific name
+List<EventNode<Event>> found = parentNode.findChildren("my-node");
+
+// Find children with a specific name and type
+List<EventNode<PlayerEvent>> playerNodes = parentNode.findChildren("player-node", PlayerEvent.class);
+```
+
+### Replacing Children
+
+```java
+EventNode<Event> newNode = EventNode.all("replacement");
+parentNode.replaceChildren("old-node", newNode);
+```
+
+---
+
+## Cancellable Events
+
+### Handling Cancellation
+
+```java
+import io.fairyproject.event.Cancellable;
+
+eventNode.addListener(PlayerMoveEvent.class, event -> {
+    if (shouldCancel(event)) {
+        event.setCancelled(true);
+    }
+});
+
+// Later listeners can check and skip cancelled events
+EventListener<PlayerMoveEvent> listener = EventListener.builder(PlayerMoveEvent.class)
+    .ignoreCancelled(true)  // This listener won't run if event is cancelled
+    .handler(event -> {
+        // This only runs if event wasn't cancelled
+    })
+    .build();
+```
+
+### Cancellable Callback
+
+```java
+// Execute callback only if event is not cancelled
+eventNode.callCancellable(new MyEvent(), () -> {
+    // This runs only if the event wasn't cancelled
+    System.out.println("Event was successful!");
+});
+```
+
+---
+
+## Cleanup and Lifecycle
+
+### Using Terminable
+
+Event nodes implement `Terminable`, making cleanup easy:
+
+```java
+import io.fairyproject.util.terminable.TerminableConsumer;
+import io.fairyproject.util.terminable.composite.CompositeTerminable;
+
+@InjectableComponent
+public class MyComponent {
+    private final CompositeTerminable terminable = CompositeTerminable.create();
+
+    public MyComponent(BukkitEventNode globalNode) {
+        EventNode<Event> myNode = EventNode.all("my-node");
+        globalNode.addChild(myNode);
+
+        // Register for automatic cleanup
+        myNode.bindWith(terminable);
+    }
+
+    // Called when component is destroyed
+    public void onDestroy() {
+        terminable.closeAndReportException();
+    }
+}
+```
+
+---
+
+## Complete Example
+
+Here's a complete example demonstrating various Event Node features:
+
+```java
+import io.fairyproject.bukkit.events.BukkitEventFilter;
+import io.fairyproject.bukkit.events.BukkitEventNode;
+import io.fairyproject.container.InjectableComponent;
+import io.fairyproject.container.PreDestroy;
+import io.fairyproject.event.EventListener;
+import io.fairyproject.event.EventNode;
+import org.bukkit.GameMode;
+import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+
+@InjectableComponent
+public class AdvancedEventHandler {
+    private final EventNode<PlayerEvent> playerNode;
+    private final BukkitEventNode globalNode;
+
+    public AdvancedEventHandler(BukkitEventNode globalNode) {
+        this.globalNode = globalNode;
+
+        // Create a filtered player event node
+        this.playerNode = EventNode.value(
+            "survival-players",
+            BukkitEventFilter.PLAYER,
+            player -> player.getGameMode() == GameMode.SURVIVAL
+        );
+
+        // Set priority (lower = executed earlier)
+        playerNode.setPriority(5);
+
+        // Add welcome message for survival players
+        playerNode.addListener(PlayerJoinEvent.class, event -> {
+            event.getPlayer().sendMessage("Welcome, survivor!");
+        });
+
+        // Add goodbye message
+        playerNode.addListener(PlayerQuitEvent.class, event -> {
+            System.out.println("Survivor " + event.getPlayer().getName() + " left");
+        });
+
+        // Add a listener that expires after 100 moves
+        EventListener<PlayerMoveEvent> limitedListener = EventListener.builder(PlayerMoveEvent.class)
+            .filter(event -> event.getTo() != null)
+            .expireCount(100)
+            .handler(event -> {
+                // Track first 100 movements per server restart
+            })
+            .build();
+        playerNode.addListener(limitedListener);
+
+        // Attach to global node
+        globalNode.addChild(playerNode);
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        // Remove our node when component is destroyed
+        globalNode.removeChild(playerNode);
+    }
+}
+```
+
+---
+
+## Event Node vs Traditional Listeners
+
+| Feature | Event Node | Traditional Listener |
+|---------|------------|---------------------|
+| Hierarchical filtering | Yes | No |
+| Dynamic add/remove | Easy | Manual |
+| Conditional execution | Built-in | Manual checks |
+| Priority control | Per-node | Per-handler |
+| Type safety | Strong | Basic |
+| Memory management | Automatic with Terminable | Manual |
+
+:::tip When to Use Event Node
+
+Use Event Node when you need:
+- Complex event filtering logic
+- Dynamic event handler management
+- Organized hierarchical event handling
+- Automatic cleanup with component lifecycle
+
+For simple cases, the traditional `@RegisterAsListener` approach may be simpler.
+
+:::
+
+---
+
+## Best Practices
+
+1. **Name your nodes descriptively** - Makes debugging and finding nodes easier
+2. **Use appropriate filters** - Filter at the node level rather than in every listener
+3. **Clean up properly** - Use `Terminable` or `@PreDestroy` to remove nodes
+4. **Set priorities carefully** - Lower numbers execute first
+5. **Prefer child nodes over many listeners** - Better organization and easier management

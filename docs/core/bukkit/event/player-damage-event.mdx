@@ -1,61 +1,360 @@
 ---
 sidebar_position: 5
-description: Player damage for Bukkit environment
+description: Enhanced player damage events for easier PvP and combat handling.
 ---
 
-# Player Damage
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-This is straightforward, who wants to detect if the entity is a player every time? We provide a simple way that would save you time and effort.
+# Player Damage Events
+
+Fairy provides enhanced player damage events that simplify combat-related event handling. Instead of checking `if (entity instanceof Player)` every time, these events are pre-filtered and provide convenient accessor methods.
 
 ---
+
+## Overview
+
+| Event | Triggers When | Provides |
+|-------|---------------|----------|
+| `PlayerDamageEvent` | Any damage to a player | Player victim |
+| `PlayerDamageByEntityEvent` | Player damaged by non-player entity | Player victim + Entity damager |
+| `PlayerDamageByPlayerEvent` | Player damaged by another player | Player victim + Player damager |
+
+### Event Hierarchy
+
+```
+EntityDamageEvent (Bukkit)
+    └── PlayerDamageEvent (Fairy)
+            ├── PlayerDamageByEntityEvent
+            └── PlayerDamageByPlayerEvent
+```
+
+---
+
 ## PlayerDamageEvent
 
-A generic event that is triggered when a player is damaged, every damage event from a player will trigger this event.
+A generic event triggered whenever a player takes damage from any source.
+
+```java
+import io.fairyproject.bukkit.events.player.PlayerDamageEvent;
+import io.fairyproject.bukkit.listener.RegisterAsListener;
+import io.fairyproject.container.InjectableComponent;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
+
+@InjectableComponent
+@RegisterAsListener
+public class DamageListener implements Listener {
+
+    @EventHandler
+    public void onPlayerDamage(PlayerDamageEvent event) {
+        Player player = event.getPlayer();
+        double damage = event.getDamage();
+        double finalDamage = event.getFinalDamage();
+        EntityDamageEvent.DamageCause cause = event.getCause();
+
+        player.sendMessage("You took " + finalDamage + " damage from " + cause);
+    }
+}
+```
+
+### Available Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `getPlayer()` | `Player` | The player who took damage |
+| `getDamage()` | `double` | Base damage amount |
+| `setDamage(double)` | `void` | Modify the damage amount |
+| `getFinalDamage()` | `double` | Final damage after armor/effects |
+| `getCause()` | `DamageCause` | The cause of damage |
+| `getEntityDamageEvent()` | `EntityDamageEvent` | Original Bukkit event |
+| `isCancelled()` | `boolean` | Check if event is cancelled |
+| `setCancelled(boolean)` | `void` | Cancel the damage |
+
+### Common Use Cases
+
+#### Damage Reduction
 
 ```java
 @EventHandler
 public void onPlayerDamage(PlayerDamageEvent event) {
     Player player = event.getPlayer();
-    // Do something
+
+    // VIP players take 50% less damage
+    if (player.hasPermission("vip.damage.reduction")) {
+        event.setDamage(event.getDamage() * 0.5);
+    }
+}
+```
+
+#### Prevent Specific Damage Types
+
+```java
+@EventHandler
+public void onPlayerDamage(PlayerDamageEvent event) {
+    EntityDamageEvent.DamageCause cause = event.getCause();
+
+    // Disable fall damage in lobby world
+    if (cause == EntityDamageEvent.DamageCause.FALL) {
+        if (event.getPlayer().getWorld().getName().equals("lobby")) {
+            event.setCancelled(true);
+        }
+    }
 }
 ```
 
 ---
+
 ## PlayerDamageByEntityEvent
 
-An event that is triggered when a player is damaged by an entity.
+Triggered when a player is damaged by a non-player entity (mobs, environmental entities, etc.).
 
-:::warning
+:::warning Important
 
-Only triggers when the damager is **NOT** a player or not indirectly damaged by a player. (projectile, etc.)
+This event does **NOT** trigger when the damager is a player or when damage is indirectly caused by a player (e.g., player-shot arrows).
 
 :::
 
 ```java
+import io.fairyproject.bukkit.events.player.PlayerDamageByEntityEvent;
+
 @EventHandler
 public void onPlayerDamageByEntity(PlayerDamageByEntityEvent event) {
     Player player = event.getPlayer();
     Entity damager = event.getDamager();
-    // Do something
+
+    if (damager instanceof Zombie) {
+        player.sendMessage("A zombie attacked you!");
+    } else if (damager instanceof Skeleton) {
+        player.sendMessage("A skeleton shot you!");
+    } else if (damager instanceof Creeper) {
+        player.sendMessage("A creeper exploded near you!");
+    }
+}
+```
+
+### Available Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `getPlayer()` | `Player` | The player who took damage |
+| `getDamager()` | `Entity` | The entity that caused damage |
+| All methods from `PlayerDamageEvent` | | Inherited methods |
+
+### Example: Mob Damage Multiplier
+
+```java
+@EventHandler
+public void onPlayerDamageByEntity(PlayerDamageByEntityEvent event) {
+    Entity damager = event.getDamager();
+
+    // Increase damage from boss mobs
+    if (damager.hasMetadata("boss")) {
+        event.setDamage(event.getDamage() * 2.0);
+    }
+
+    // Reduce damage from baby zombies
+    if (damager instanceof Zombie && ((Zombie) damager).isBaby()) {
+        event.setDamage(event.getDamage() * 0.5);
+    }
 }
 ```
 
 ---
+
 ## PlayerDamageByPlayerEvent
 
-An event that is triggered when a player is damaged by another player.
+Triggered when a player is damaged by another player, including indirect damage (projectiles, TNT, etc.).
 
-:::tip
+:::tip Projectile Support
 
-This included when the player is indirectly damaged by another player. (projectile, etc.)
+This event correctly identifies the player damager even when they use projectiles like arrows, tridents, or snowballs.
 
 :::
 
 ```java
+import io.fairyproject.bukkit.events.player.PlayerDamageByPlayerEvent;
+
 @EventHandler
 public void onPlayerDamageByPlayer(PlayerDamageByPlayerEvent event) {
-    Player player = event.getPlayer();
+    Player victim = event.getPlayer();
     Player damager = event.getDamager();
-    // Do something
+
+    damager.sendMessage("You hit " + victim.getName() + " for " + event.getFinalDamage() + " damage!");
+    victim.sendMessage("You were hit by " + damager.getName() + "!");
 }
 ```
+
+### Available Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `getPlayer()` | `Player` | The player who took damage |
+| `getDamager()` | `Player` | The player who caused damage |
+| All methods from `PlayerDamageEvent` | | Inherited methods |
+
+### Example: PvP Protection System
+
+```java
+@InjectableComponent
+@RegisterAsListener
+public class PvPProtectionListener implements Listener {
+
+    private final Set<UUID> protectedPlayers = new HashSet<>();
+
+    @EventHandler
+    public void onPlayerDamageByPlayer(PlayerDamageByPlayerEvent event) {
+        Player victim = event.getPlayer();
+        Player damager = event.getDamager();
+
+        // Check if victim has PvP protection
+        if (protectedPlayers.contains(victim.getUniqueId())) {
+            event.setCancelled(true);
+            damager.sendMessage(victim.getName() + " has PvP protection!");
+            return;
+        }
+
+        // Check if damager has PvP protection
+        if (protectedPlayers.contains(damager.getUniqueId())) {
+            event.setCancelled(true);
+            damager.sendMessage("You cannot attack while PvP protection is active!");
+            return;
+        }
+    }
+
+    public void enableProtection(Player player) {
+        protectedPlayers.add(player.getUniqueId());
+    }
+
+    public void disableProtection(Player player) {
+        protectedPlayers.remove(player.getUniqueId());
+    }
+}
+```
+
+---
+
+## Comparison with Bukkit Events
+
+### Traditional Bukkit Approach
+
+```java
+@EventHandler
+public void onEntityDamage(EntityDamageByEntityEvent event) {
+    if (!(event.getEntity() instanceof Player)) {
+        return;
+    }
+    Player victim = (Player) event.getEntity();
+
+    Entity damager = event.getDamager();
+
+    // Handle projectiles
+    if (damager instanceof Projectile) {
+        Projectile projectile = (Projectile) damager;
+        if (projectile.getShooter() instanceof Player) {
+            Player shooter = (Player) projectile.getShooter();
+            // Now handle player vs player
+        }
+    } else if (damager instanceof Player) {
+        Player attacker = (Player) damager;
+        // Handle player vs player
+    }
+}
+```
+
+### Fairy Approach
+
+```java
+@EventHandler
+public void onPlayerDamageByPlayer(PlayerDamageByPlayerEvent event) {
+    Player victim = event.getPlayer();
+    Player damager = event.getDamager();  // Already resolved from projectiles!
+    // Handle player vs player - much cleaner!
+}
+```
+
+---
+
+## Complete Example: Combat Logger
+
+A complete example showing all three event types working together:
+
+```java
+import io.fairyproject.bukkit.events.player.PlayerDamageByEntityEvent;
+import io.fairyproject.bukkit.events.player.PlayerDamageByPlayerEvent;
+import io.fairyproject.bukkit.events.player.PlayerDamageEvent;
+import io.fairyproject.bukkit.listener.RegisterAsListener;
+import io.fairyproject.container.InjectableComponent;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+@InjectableComponent
+@RegisterAsListener
+public class CombatLogger implements Listener {
+
+    private final Map<UUID, Long> lastCombatTime = new HashMap<>();
+    private static final long COMBAT_DURATION = 15000; // 15 seconds
+
+    // Track all player damage for logging
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerDamage(PlayerDamageEvent event) {
+        Player player = event.getPlayer();
+        System.out.println("[Combat] " + player.getName() +
+                " took " + String.format("%.2f", event.getFinalDamage()) +
+                " damage from " + event.getCause());
+    }
+
+    // Track mob combat
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerDamageByEntity(PlayerDamageByEntityEvent event) {
+        Player player = event.getPlayer();
+        System.out.println("[Combat] " + player.getName() +
+                " was attacked by " + event.getDamager().getType());
+    }
+
+    // Track PvP combat - put both players in combat
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerDamageByPlayer(PlayerDamageByPlayerEvent event) {
+        Player victim = event.getPlayer();
+        Player damager = event.getDamager();
+        long now = System.currentTimeMillis();
+
+        // Put both players in combat
+        lastCombatTime.put(victim.getUniqueId(), now);
+        lastCombatTime.put(damager.getUniqueId(), now);
+
+        victim.sendMessage("You are now in combat!");
+        damager.sendMessage("You are now in combat!");
+    }
+
+    public boolean isInCombat(Player player) {
+        Long lastTime = lastCombatTime.get(player.getUniqueId());
+        if (lastTime == null) {
+            return false;
+        }
+        return System.currentTimeMillis() - lastTime < COMBAT_DURATION;
+    }
+
+    public void clearCombat(Player player) {
+        lastCombatTime.remove(player.getUniqueId());
+    }
+}
+```
+
+---
+
+## Tips and Best Practices
+
+1. **Use the most specific event** - If you only care about PvP, use `PlayerDamageByPlayerEvent`
+2. **Monitor priority for logging** - Use `EventPriority.MONITOR` when only observing
+3. **Check cancellation** - Use `ignoreCancelled = true` to skip cancelled events
+4. **Access original event** - Use `getEntityDamageEvent()` for full Bukkit API access
+5. **Modify damage early** - Use lower priorities when modifying damage values
